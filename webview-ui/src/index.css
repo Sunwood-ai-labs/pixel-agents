@@ -258,7 +258,7 @@
   }
 
   .editor-toolbar button {
-    min-height: 40px;
+    min-height: 44px;
   }
 
   .edit-action-bar {
@@ -270,8 +270,13 @@
   }
 
   .edit-action-bar button {
-    min-height: 40px;
+    min-height: 44px;
     flex: 0 0 auto;
+  }
+
+  .zoom-controls button {
+    width: 44px;
+    height: 44px;
   }
 
   .migration-card {
