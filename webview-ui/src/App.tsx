@@ -179,7 +179,7 @@ function App() {
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full relative overflow-hidden">
+    <div ref={containerRef} className="app-shell w-full h-full relative overflow-hidden">
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}

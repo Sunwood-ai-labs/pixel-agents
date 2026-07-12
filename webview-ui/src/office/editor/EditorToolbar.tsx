@@ -120,7 +120,7 @@ export function EditorToolbar({
   const isPetsActive = activeTool === EditTool.PETS;
 
   return (
-    <div className="absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
+    <div className="editor-toolbar absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
       {/* Tool row — at the bottom */}
       <div className="flex gap-4 flex-wrap">
         <Button

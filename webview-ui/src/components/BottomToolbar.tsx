@@ -82,7 +82,7 @@ export function BottomToolbar({
   };
 
   return (
-    <div className="absolute bottom-10 left-10 z-20 flex items-center gap-4 pixel-panel p-4">
+    <div className="bottom-toolbar absolute bottom-10 left-10 z-20 flex items-center gap-4 pixel-panel p-4">
       {/* Hide + Agent in standalone browser mode (no terminal to interact with) */}
       {!isBrowserRuntime && (
         <div

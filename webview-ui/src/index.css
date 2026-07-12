@@ -126,3 +126,123 @@
     opacity: 0.3;
   }
 }
+
+/* Compact screens keep the office canvas immersive while moving controls into
+   safe, touchable zones. Desktop and VS Code panel sizing remain unchanged. */
+@media (max-width: 640px), (max-height: 560px) {
+  .app-shell {
+    --mobile-edge: 8px;
+    --mobile-safe-bottom: max(8px, env(safe-area-inset-bottom));
+    --mobile-toolbar-height: 58px;
+  }
+
+  .bottom-toolbar {
+    left: var(--mobile-edge);
+    right: var(--mobile-edge);
+    bottom: var(--mobile-safe-bottom);
+    min-height: var(--mobile-toolbar-height);
+    justify-content: stretch;
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .bottom-toolbar > button,
+  .bottom-toolbar > div,
+  .bottom-toolbar > div > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .bottom-toolbar button {
+    min-height: 44px;
+    padding-inline: 10px;
+  }
+
+  .responsive-tooltip {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    left: var(--mobile-edge) !important;
+    right: var(--mobile-edge) !important;
+    width: auto;
+    max-width: none;
+    white-space: normal;
+  }
+
+  .responsive-tooltip > div:first-child {
+    min-height: 44px;
+    gap: 8px;
+  }
+
+  .responsive-tooltip > div:last-child {
+    line-height: 1.35;
+  }
+
+  .tooltip-dismiss,
+  .responsive-dismiss {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .version-notice,
+  .version-hover {
+    left: var(--mobile-edge);
+    right: var(--mobile-edge);
+    bottom: calc(var(--mobile-safe-bottom) + var(--mobile-toolbar-height) + 8px);
+    max-width: none;
+  }
+
+  .version-notice span,
+  .version-hover {
+    white-space: normal;
+  }
+
+  .version-label {
+    right: 12px;
+    bottom: calc(var(--mobile-safe-bottom) + 14px);
+    z-index: 21;
+    font-size: 16px;
+  }
+
+  .responsive-modal {
+    width: calc(100vw - 16px);
+    min-width: 0 !important;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .responsive-modal > div:first-child {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg);
+    gap: 8px;
+  }
+
+  .responsive-modal > div:first-child > span {
+    min-width: 0;
+    font-size: clamp(22px, 7vw, 30px);
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+  }
+
+  .editor-toolbar {
+    left: var(--mobile-edge);
+    right: var(--mobile-edge);
+    bottom: calc(var(--mobile-safe-bottom) + var(--mobile-toolbar-height) + 8px);
+    max-width: none;
+    max-height: min(48dvh, 360px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .editor-toolbar button {
+    min-height: 40px;
+  }
+}
