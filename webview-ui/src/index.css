@@ -98,6 +98,12 @@
   * {
     @apply font-pixel;
   }
+
+  button:focus-visible,
+  a:focus-visible {
+    outline: 3px solid var(--color-accent-bright);
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
@@ -232,6 +238,15 @@
     overflow-wrap: anywhere;
   }
 
+  .settings-row {
+    min-height: 52px;
+    padding-block: 8px;
+  }
+
+  .checkbox-indicator {
+    box-shadow: 0 0 0 8px transparent;
+  }
+
   .editor-toolbar {
     left: var(--mobile-edge);
     right: var(--mobile-edge);
@@ -244,5 +259,34 @@
 
   .editor-toolbar button {
     min-height: 40px;
+  }
+
+  .edit-action-bar {
+    top: max(8px, env(safe-area-inset-top));
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .edit-action-bar button {
+    min-height: 40px;
+    flex: 0 0 auto;
+  }
+
+  .migration-card {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    padding: 24px 16px;
+  }
+
+  .migration-card > div:first-child {
+    font-size: clamp(30px, 10vw, 48px);
+  }
+
+  .migration-card p {
+    font-size: clamp(18px, 5vw, 24px);
   }
 }

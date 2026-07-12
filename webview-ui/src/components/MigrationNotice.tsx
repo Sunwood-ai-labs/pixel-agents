@@ -11,7 +11,7 @@ export function MigrationNotice({ onDismiss }: MigrationNoticeProps) {
       onClick={onDismiss}
     >
       <div
-        className="pixel-panel py-24 px-32 max-w-xl text-center leading-[1.3]"
+        className="migration-card pixel-panel py-24 px-32 max-w-xl text-center leading-[1.3]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-5xl mb-12 text-accent">We owe you an apology!</div>
