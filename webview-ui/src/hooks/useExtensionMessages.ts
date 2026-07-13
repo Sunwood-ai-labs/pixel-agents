@@ -379,7 +379,7 @@ export function useExtensionMessages(
         os.setAgentActive(id, status === 'active');
         if (status === 'waiting') {
           os.showWaitingBubble(id, msg.awaitingInput === true);
-          playDoneSound();
+          if (msg.silent !== true) playDoneSound();
         }
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number;

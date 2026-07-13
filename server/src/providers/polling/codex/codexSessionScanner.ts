@@ -7,6 +7,7 @@ import type { AgentStateStore } from '../../../agentStateStore.js';
 import type { AgentState } from '../../../types.js';
 
 const DEFAULT_MAX_IDLE_MS = 30 * 60 * 1000;
+const DEFAULT_COMPLETED_RETENTION_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_POLL_MS = 2_000;
 
 export interface CodexSessionInfo {
@@ -16,6 +17,7 @@ export interface CodexSessionInfo {
   agentPath: string;
   nickname?: string;
   lastDataAt: number;
+  lifecycle: 'active' | 'done';
 }
 
 interface DiscoveryOptions {
@@ -23,6 +25,7 @@ interface DiscoveryOptions {
   workspacePath: string;
   now?: number;
   maxIdleMs?: number;
+  completedRetentionMs?: number;
 }
 
 function isWorkspaceRelated(sessionCwd: string, workspacePath: string): boolean {
@@ -64,8 +67,8 @@ function recentJsonlFiles(root: string, cutoff: number): string[] {
 }
 
 async function inspectSession(file: string): Promise<CodexSessionInfo | null> {
-  let metadata: CodexSessionInfo | null = null;
-  let active = false;
+  let metadata: Omit<CodexSessionInfo, 'lifecycle'> | null = null;
+  let lifecycle: CodexSessionInfo['lifecycle'] | null = null;
   let lines = 0;
   const stream = fs.createReadStream(file, { encoding: 'utf8' });
   const reader = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -104,8 +107,8 @@ async function inspectSession(file: string): Promise<CodexSessionInfo | null> {
       }
 
       if (record['type'] === 'event_msg') {
-        if (p['type'] === 'task_started') active = true;
-        if (p['type'] === 'task_complete') active = false;
+        if (p['type'] === 'task_started') lifecycle = 'active';
+        if (p['type'] === 'task_complete') lifecycle = 'done';
       }
     }
   } finally {
@@ -113,8 +116,8 @@ async function inspectSession(file: string): Promise<CodexSessionInfo | null> {
     stream.destroy();
   }
 
-  if (!metadata || !active) return null;
-  return { ...metadata, lastDataAt: metadata.lastDataAt || lines };
+  if (!metadata || !lifecycle) return null;
+  return { ...metadata, lifecycle, lastDataAt: metadata.lastDataAt || lines };
 }
 
 /** Discover live Codex sessions without reading prompt/message content. */
@@ -123,22 +126,32 @@ export async function discoverActiveCodexSessions(
 ): Promise<CodexSessionInfo[]> {
   const now = options.now ?? Date.now();
   const maxIdleMs = options.maxIdleMs ?? DEFAULT_MAX_IDLE_MS;
+  const completedRetentionMs = options.completedRetentionMs ?? DEFAULT_COMPLETED_RETENTION_MS;
   const root = options.sessionsRoot ?? path.join(os.homedir(), '.codex', 'sessions');
   const files = recentJsonlFiles(root, now - maxIdleMs);
   const inspected = await Promise.all(files.map((file) => inspectSession(file)));
 
-  return inspected
-    .filter((session): session is CodexSessionInfo => {
-      return Boolean(session && isWorkspaceRelated(session.cwd, options.workspacePath));
-    })
-    .sort((a, b) => a.agentPath.localeCompare(b.agentPath));
+  const related = inspected.filter((session): session is CodexSessionInfo => {
+    if (!session || !isWorkspaceRelated(session.cwd, options.workspacePath)) return false;
+    const retention = session.lifecycle === 'active' ? maxIdleMs : completedRetentionMs;
+    return session.lastDataAt >= now - retention;
+  });
+  const active = related.filter((session) => session.lifecycle === 'active');
+  const completed = related
+    .filter((session) => session.lifecycle === 'done' && session.agentPath !== '/root')
+    .sort((a, b) => b.lastDataAt - a.lastDataAt);
+  return [...active, ...completed].sort((a, b) => a.agentPath.localeCompare(b.agentPath));
 }
 
 function displayName(session: CodexSessionInfo): string {
-  if (session.agentPath === '/root') return 'Codex';
-  if (session.nickname) return `Codex · ${session.nickname}`;
-  const leaf = session.agentPath.split('/').filter(Boolean).at(-1) ?? 'Agent';
-  return `Codex · ${leaf.replaceAll('_', ' ')}`;
+  let name: string;
+  if (session.agentPath === '/root') name = 'Codex';
+  else if (session.nickname) name = `Codex · ${session.nickname}`;
+  else {
+    const leaf = session.agentPath.split('/').filter(Boolean).at(-1) ?? 'Agent';
+    name = `Codex · ${leaf.replaceAll('_', ' ')}`;
+  }
+  return session.lifecycle === 'done' ? `${name} · Done` : name;
 }
 
 function makeAgent(id: number, session: CodexSessionInfo): AgentState {
@@ -157,7 +170,7 @@ function makeAgent(id: number, session: CodexSessionInfo): AgentState {
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
     backgroundAgentToolIds: new Set(),
-    isWaiting: false,
+    isWaiting: session.lifecycle === 'done',
     permissionSent: false,
     hadToolsInTurn: false,
     folderName: displayName(session),
@@ -194,10 +207,36 @@ export class CodexSessionScanner {
       const activeIds = new Set(sessions.map((session) => session.sessionId));
 
       for (const session of sessions) {
-        if (this.ownedAgents.has(session.sessionId)) continue;
+        const existingId = this.ownedAgents.get(session.sessionId);
+        if (existingId !== undefined) {
+          const agent = this.store.get(existingId);
+          if (agent) {
+            const becameDone = !agent.isWaiting && session.lifecycle === 'done';
+            agent.isWaiting = session.lifecycle === 'done';
+            agent.folderName = displayName(session);
+            agent.lastDataAt = session.lastDataAt;
+            if (becameDone) {
+              this.store.broadcast({
+                type: 'agentStatus',
+                id: existingId,
+                status: 'waiting',
+                awaitingInput: false,
+              });
+            }
+          }
+          continue;
+        }
         const id = this.store.nextAgentId.current++;
         this.ownedAgents.set(session.sessionId, id);
         this.store.set(id, makeAgent(id, session));
+        if (session.lifecycle === 'done') {
+          this.store.broadcast({
+            type: 'agentStatus',
+            id,
+            status: 'waiting',
+            awaitingInput: false,
+          });
+        }
         console.log(
           `[Codex Scanner] Added ${displayName(session)} from ${path.basename(session.jsonlFile)}`,
         );
@@ -207,7 +246,7 @@ export class CodexSessionScanner {
         if (activeIds.has(sessionId)) continue;
         this.ownedAgents.delete(sessionId);
         this.store.delete(id);
-        console.log(`[Codex Scanner] Removed completed or stale Codex agent ${sessionId}`);
+        console.log(`[Codex Scanner] Removed expired or stale Codex agent ${sessionId}`);
       }
     } catch (error) {
       console.error('[Codex Scanner] Scan failed:', error);

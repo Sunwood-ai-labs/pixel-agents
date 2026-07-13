@@ -60,13 +60,18 @@ describe('discoverActiveCodexSessions', () => {
       sessionId: 'child-id',
       agentPath: '/root/reviewer',
       nickname: 'Singer',
+      lifecycle: 'active',
     });
   });
 
-  it('excludes completed, stale, and unrelated sessions', async () => {
+  it('retains recently completed sessions but excludes expired and unrelated sessions', async () => {
     const root = tempRoot();
     writeSession(root, 'completed', [
-      record('session_meta', { id: 'done', cwd: '/Users/admin/Prj' }),
+      record('session_meta', {
+        id: 'done',
+        cwd: '/Users/admin/Prj',
+        agent_path: '/root/reviewer',
+      }),
       record('event_msg', { type: 'task_started' }),
       record('event_msg', { type: 'task_complete' }),
     ]);
@@ -76,27 +81,70 @@ describe('discoverActiveCodexSessions', () => {
     ]);
     writeSession(
       root,
-      'stale',
+      'expired-completed',
       [
-        record('session_meta', { id: 'stale', cwd: '/Users/admin/Prj' }),
+        record('session_meta', { id: 'expired', cwd: '/Users/admin/Prj' }),
         record('event_msg', { type: 'task_started' }),
+        record('event_msg', { type: 'task_complete' }),
       ],
-      new Date(Date.now() - 31 * 60 * 1000),
+      new Date(Date.now() - 25 * 60 * 60 * 1000),
     );
 
     const sessions = await discoverActiveCodexSessions({
       sessionsRoot: root,
       workspacePath: '/Users/admin/Prj',
     });
-    expect(sessions).toEqual([]);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({ sessionId: 'done', lifecycle: 'done' });
+  });
+
+  it('retains all completed sub-agents from the last 24 hours and never a completed root', async () => {
+    const root = tempRoot();
+    const now = Date.now();
+    for (let i = 0; i < 7; i++) {
+      writeSession(
+        root,
+        `worker-${i}`,
+        [
+          record('session_meta', {
+            id: `worker-${i}`,
+            cwd: '/Users/admin/Prj',
+            agent_path: `/root/worker_${i}`,
+          }),
+          record('event_msg', { type: 'task_started' }),
+          record('event_msg', { type: 'task_complete' }),
+        ],
+        new Date(now - i * 1_000),
+      );
+    }
+    writeSession(root, 'completed-root', [
+      record('session_meta', { id: 'completed-root', cwd: '/Users/admin/Prj' }),
+      record('event_msg', { type: 'task_started' }),
+      record('event_msg', { type: 'task_complete' }),
+    ]);
+
+    const sessions = await discoverActiveCodexSessions({
+      sessionsRoot: root,
+      workspacePath: '/Users/admin/Prj',
+      now,
+    });
+
+    expect(sessions).toHaveLength(7);
+    expect(sessions.map((session) => session.sessionId)).toContain('worker-6');
+    expect(sessions.map((session) => session.sessionId)).not.toContain('completed-root');
   });
 });
 
 describe('CodexSessionScanner', () => {
-  it('adds real active sessions and removes them after completion', async () => {
+  it('keeps completed agents as Done until the retention window expires', async () => {
     const root = tempRoot();
     const file = writeSession(root, 'active', [
-      record('session_meta', { id: 'root-id', cwd: '/Users/admin/Prj', agent_path: '/root' }),
+      record('session_meta', {
+        id: 'worker-id',
+        cwd: '/Users/admin/Prj',
+        agent_path: '/root/test_worker',
+        agent_nickname: 'Tester',
+      }),
       record('event_msg', { type: 'task_started' }),
     ]);
     const store = new AgentStateStore();
@@ -109,14 +157,24 @@ describe('CodexSessionScanner', () => {
     await scanner.scan();
     expect(store.size).toBe(1);
     expect([...store.values()][0]).toMatchObject({
-      sessionId: 'root-id',
+      sessionId: 'worker-id',
       providerId: 'codex',
-      folderName: 'Codex',
+      folderName: 'Codex · Tester',
       isExternal: true,
     });
     expect(added).toHaveBeenCalledOnce();
 
     fs.appendFileSync(file, `${record('event_msg', { type: 'task_complete' })}\n`);
+    await scanner.scan();
+    expect(store.size).toBe(1);
+    expect([...store.values()][0]).toMatchObject({
+      isWaiting: true,
+      folderName: 'Codex · Tester · Done',
+    });
+    expect(removed).not.toHaveBeenCalled();
+
+    const expired = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    fs.utimesSync(file, expired, expired);
     await scanner.scan();
     expect(store.size).toBe(0);
     expect(removed).toHaveBeenCalledOnce();

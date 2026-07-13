@@ -8,6 +8,7 @@ When the requested office is intended to show Codex work, do not treat a healthy
 - Completion requires at least one Codex-derived character visible in the rendered office.
 - Verify both the backing session evidence and a fresh screenshot containing the character before reporting success.
 - If no current Codex session can be adopted, report the office integration as incomplete and name the missing discovery or routing evidence plainly.
+- Do not make real Codex sub-agents disappear the instant they complete. Keep every workspace-related real sub-agent session from the previous 24 hours visibly marked `Done`, then remove it automatically when it ages out; never retain completed root sessions or inflate occupancy with fabricated agents.
 
 ## Viewer-first control chrome
 

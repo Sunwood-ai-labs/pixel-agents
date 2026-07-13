@@ -133,7 +133,7 @@ Pixel Agents has two parallel detection paths:
 
 - **Hooks mode** (preferred) — Claude Code's official Hooks API POSTs events (`SessionStart`, `PreToolUse`, `Notification`, `Stop`, etc.) to a local Fastify server (`POST /api/hooks/:providerId`). Instant, reliable. Server discovery via `~/.pixel-agents/server.json`.
 - **Heuristic mode** (fallback) — Polls JSONL transcript files at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Used when hooks aren't installed.
-- **Codex session mode** (standalone CLI) — observes recent active rollout files under `~/.codex/sessions/`, including live Codex sub-agents. Prompt and message content is not used for discovery.
+- **Codex session mode** (standalone CLI) — observes rollout files under `~/.codex/sessions/`, including live Codex sub-agents and real completed sub-agent sessions from the previous 24 hours marked `Done`. Prompt and message content is not used for discovery.
 
 A single `HookProvider.normalizeHookEvent(raw)` translates each CLI's hook payload into a canonical `AgentEvent`. The shared `AgentRuntime` dispatches on `AgentEvent.kind`, mutates `AgentStateStore`, and the broadcast layer translates state events into typed `ServerMessage` over the active transport.
 

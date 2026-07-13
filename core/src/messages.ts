@@ -98,6 +98,7 @@ export interface AgentStatus {
   id: number;
   status: AgentActivityStatus;
   awaitingInput?: boolean;
+  silent?: boolean;
 }
 
 export type AgentActivityStatus = 'active' | 'waiting';

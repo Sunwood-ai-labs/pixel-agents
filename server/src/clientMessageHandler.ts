@@ -219,4 +219,16 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     folderNames,
     externalAgents,
   });
+  // Restore waiting/Done state after the character exists in a newly connected
+  // webview. Mark it silent so opening the viewer does not replay old sounds.
+  for (const [id, agent] of store) {
+    if (!agent.isWaiting) continue;
+    send({
+      type: 'agentStatus',
+      id,
+      status: 'waiting',
+      awaitingInput: false,
+      silent: true,
+    });
+  }
 }
