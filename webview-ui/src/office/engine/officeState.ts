@@ -288,6 +288,20 @@ export class OfficeState {
     return null;
   }
 
+  private findNearestFreeSeat(parentAgentId: number): string | null {
+    const parent = this.characters.get(parentAgentId);
+    if (!parent) return null;
+    let nearest: { id: string; distance: number } | null = null;
+    for (const [id, seat] of this.seats) {
+      if (seat.assigned) continue;
+      const dx = seat.seatCol * TILE_SIZE + TILE_SIZE / 2 - parent.x;
+      const dy = seat.seatRow * TILE_SIZE + TILE_SIZE / 2 - parent.y;
+      const distance = dx * dx + dy * dy;
+      if (!nearest || distance < nearest.distance) nearest = { id, distance };
+    }
+    return nearest?.id ?? null;
+  }
+
   /**
    * Pick a diverse palette for a new agent based on currently active agents.
    * First 6 agents each get a unique skin (random order). Beyond 6, skins
@@ -323,6 +337,7 @@ export class OfficeState {
     preferredSeatId?: string,
     skipSpawnEffect?: boolean,
     folderName?: string,
+    parentAgentId?: number,
   ): void {
     if (this.characters.has(id)) return;
 
@@ -337,9 +352,13 @@ export class OfficeState {
       hueShift = pick.hueShift;
     }
 
-    // Try preferred seat first, then any free seat
+    // Direct relatives form a desk cluster. For children, lineage placement wins
+    // over a stale persisted seat from an earlier, relationship-unaware layout.
     let seatId: string | null = null;
-    if (preferredSeatId && this.seats.has(preferredSeatId)) {
+    if (parentAgentId !== undefined) {
+      seatId = this.findNearestFreeSeat(parentAgentId);
+    }
+    if (!seatId && preferredSeatId && this.seats.has(preferredSeatId)) {
       const seat = this.seats.get(preferredSeatId)!;
       if (!seat.assigned) {
         seatId = preferredSeatId;
@@ -370,6 +389,7 @@ export class OfficeState {
     if (folderName) {
       ch.folderName = folderName;
     }
+    if (parentAgentId !== undefined) ch.leadAgentId = parentAgentId;
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn';
       ch.matrixEffectTimer = 0;

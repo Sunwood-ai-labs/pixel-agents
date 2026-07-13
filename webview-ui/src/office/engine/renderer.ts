@@ -1,5 +1,6 @@
 import type { ColorValue } from '../../components/ui/types.js';
 import {
+  AGENT_CONNECTION_COLOR,
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
@@ -60,13 +61,13 @@ import type {
 } from '../types.js';
 import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
+import { computeAgentConnections } from './agentConnections.js';
 import { getCharacterSprite } from './characters.js';
 import { computeCompanySignLayout } from './companySign.js';
 import { renderMatrixEffect } from './matrixEffect.js';
 import { getPetSpriteData } from './petEntity.js';
 
 const SIGN_FONT_FAMILY = "'Silkscreen', 'FS Pixel Sans', monospace";
-
 // ── Render functions ────────────────────────────────────────────
 
 /** @internal */
@@ -114,6 +115,37 @@ export function renderTileGrid(
       ctx.drawImage(cached, offsetX + c * s, offsetY + r * s);
     }
   }
+}
+
+/** Draw provider hierarchy below furniture so lineage reads without obscuring people. */
+export function renderAgentConnections(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  const connections = computeAgentConnections(characters);
+  ctx.save();
+  ctx.strokeStyle = AGENT_CONNECTION_COLOR;
+  ctx.fillStyle = AGENT_CONNECTION_COLOR;
+  ctx.globalAlpha = 0.38;
+  ctx.lineWidth = Math.max(1, Math.round(zoom * 0.65));
+  ctx.setLineDash([Math.max(2, zoom * 2), Math.max(2, zoom)]);
+  for (const { parent, child } of connections) {
+    const parentX = offsetX + Math.round(parent.x * zoom);
+    const parentY = offsetY + Math.round((parent.y - 5) * zoom);
+    const childX = offsetX + Math.round(child.x * zoom);
+    const childY = offsetY + Math.round((child.y - 5) * zoom);
+    ctx.beginPath();
+    ctx.moveTo(parentX, parentY);
+    ctx.lineTo(childX, childY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillRect(childX - Math.max(1, zoom), childY - Math.max(1, zoom), zoom * 2, zoom * 2);
+    ctx.setLineDash([Math.max(2, zoom * 2), Math.max(2, zoom)]);
+  }
+  ctx.restore();
 }
 
 interface ZDrawable {
@@ -740,6 +772,8 @@ export function renderFrame(
 
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
+
+  renderAgentConnections(ctx, characters, offsetX, offsetY, zoom);
 
   // Seat indicators (below furniture/characters, on top of floor)
   if (selection) {

@@ -121,6 +121,8 @@ export function useExtensionMessages(
       hueShift?: number;
       seatId?: string;
       folderName?: string;
+      parentAgentId?: number;
+      agentName?: string;
     }> = [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -172,7 +174,16 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.parentAgentId);
+        }
+        for (const p of pendingAgents) {
+          os.setTeamInfo(
+            p.id,
+            'Codex',
+            p.agentName,
+            p.parentAgentId === undefined,
+            p.parentAgentId,
+          );
         }
         pendingAgents = [];
         layoutReadyRef.current = true;
@@ -201,7 +212,15 @@ export function useExtensionMessages(
           const parentCh = os.characters.get(teammateParentId);
           const palette = parentCh ? parentCh.palette : undefined;
           const hueShift = parentCh ? parentCh.hueShift : undefined;
-          os.addAgent(id, palette, hueShift, undefined, undefined, parentCh?.folderName);
+          os.addAgent(
+            id,
+            palette,
+            hueShift,
+            undefined,
+            undefined,
+            folderName ?? parentCh?.folderName,
+            teammateParentId,
+          );
           // Set team metadata on the character
           const ch = os.characters.get(id);
           if (ch) {
@@ -246,6 +265,8 @@ export function useExtensionMessages(
           { palette?: number; hueShift?: number; seatId?: string }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
+        const parentAgentIds = (msg.parentAgentIds || {}) as Record<number, number>;
+        const agentNames = (msg.agentNames || {}) as Record<number, string>;
         // The standalone server sends layoutLoaded before existingAgents. Add
         // immediately when layout is already ready; only buffer the reverse
         // ordering used by some embedded/restore paths.
@@ -257,6 +278,8 @@ export function useExtensionMessages(
             hueShift: m?.hueShift,
             seatId: m?.seatId,
             folderName: folderNames[id],
+            parentAgentId: parentAgentIds[id],
+            agentName: agentNames[id],
           };
           if (layoutReadyRef.current) {
             os.addAgent(
@@ -266,9 +289,21 @@ export function useExtensionMessages(
               pending.seatId,
               true,
               pending.folderName,
+              pending.parentAgentId,
             );
           } else {
             pendingAgents.push(pending);
+          }
+        }
+        if (layoutReadyRef.current) {
+          for (const id of incoming) {
+            os.setTeamInfo(
+              id,
+              'Codex',
+              agentNames[id],
+              parentAgentIds[id] === undefined,
+              parentAgentIds[id],
+            );
           }
         }
         if (layoutReadyRef.current && os.characters.size > 0) saveAgentSeats(os);

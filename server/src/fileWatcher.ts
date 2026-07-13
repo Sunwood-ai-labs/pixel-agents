@@ -723,6 +723,9 @@ export function scanTeamConfigsForRemovals(agents: AgentStateStore): number[] {
   // Group teammates by their teamName for efficient config lookups
   const teammatesByTeam = new Map<string, Array<{ id: number; agent: AgentState }>>();
   for (const [id, agent] of agents) {
+    // Shared stores may contain a hierarchy owned by another provider. Do not
+    // dissolve Codex children using Claude's team membership sidecar.
+    if (agent.providerId && agent.providerId !== teamProvider.providerId) continue;
     if (agent.leadAgentId === undefined || agent.teamUsesTmux || !agent.teamName) continue;
     let list = teammatesByTeam.get(agent.teamName);
     if (!list) {
@@ -769,6 +772,7 @@ export function scanAllTeammateFiles(
   // write to the same teammate directory) and create spurious teammate characters for
   // them when the Agent Teams feature is OFF.
   for (const [agentId, agent] of agents) {
+    if (teamProvider && agent.providerId && agent.providerId !== teamProvider.providerId) continue;
     // Only scan for lead agents (not teammates themselves)
     if (agent.leadAgentId !== undefined) continue;
     if (!agent.sessionId || !agent.projectDir) continue;

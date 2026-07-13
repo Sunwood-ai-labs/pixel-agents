@@ -227,6 +227,16 @@ components:
           description: Map of agent ID (string) to external flag.
           additionalProperties:
             type: boolean
+        parentAgentIds:
+          type: object
+          description: Map of child agent ID (string) to its visible parent agent ID.
+          additionalProperties:
+            type: integer
+        agentNames:
+          type: object
+          description: Map of agent ID (string) to its provider-derived task label.
+          additionalProperties:
+            type: string
 
     AgentStatus:
       description: Active vs waiting state for an agent (drives character animation).

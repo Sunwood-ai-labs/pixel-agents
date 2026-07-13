@@ -44,6 +44,7 @@ describe('discoverActiveCodexSessions', () => {
         cwd: '/Users/admin/Prj',
         agent_path: '/root/reviewer',
         agent_nickname: 'Singer',
+        parent_thread_id: 'parent-id',
       }),
       record('session_meta', { id: 'inherited-root-id', cwd: '/wrong' }),
       record('event_msg', { type: 'task_complete' }),
@@ -60,6 +61,7 @@ describe('discoverActiveCodexSessions', () => {
       sessionId: 'child-id',
       agentPath: '/root/reviewer',
       nickname: 'Singer',
+      parentThreadId: 'parent-id',
       lifecycle: 'active',
     });
   });
@@ -138,9 +140,76 @@ describe('discoverActiveCodexSessions', () => {
     expect(sessions.map((session) => session.sessionId)).toContain('worker-6');
     expect(sessions.map((session) => session.sessionId)).not.toContain('completed-root');
   });
+
+  it('reports only safe tool activity metadata and clears it after output', async () => {
+    const root = tempRoot();
+    const file = writeSession(root, 'tool-active', [
+      record('session_meta', { id: 'tool-id', cwd: '/Users/admin/Prj' }),
+      record('event_msg', { type: 'task_started' }),
+      record('response_item', {
+        type: 'custom_tool_call',
+        call_id: 'call-1',
+        name: 'apply_patch',
+        input: 'private prompt and patch content must not become UI text',
+      }),
+    ]);
+
+    let sessions = await discoverActiveCodexSessions({
+      sessionsRoot: root,
+      workspacePath: '/Users/admin/Prj',
+    });
+    expect(sessions[0]?.activeTool).toEqual({
+      id: 'call-1',
+      name: 'Edit',
+      status: 'Editing code',
+    });
+
+    fs.appendFileSync(
+      file,
+      `${record('response_item', {
+        type: 'custom_tool_call_output',
+        call_id: 'call-1',
+        output: 'private command output must not become UI text',
+      })}\n`,
+    );
+    sessions = await discoverActiveCodexSessions({
+      sessionsRoot: root,
+      workspacePath: '/Users/admin/Prj',
+    });
+    expect(sessions[0]?.activeTool).toBeUndefined();
+  });
 });
 
 describe('CodexSessionScanner', () => {
+  it('links a nested agent to its visible parent and exposes its task handle', async () => {
+    const root = tempRoot();
+    writeSession(root, 'root', [
+      record('session_meta', { id: 'root-id', cwd: '/Users/admin/Prj' }),
+      record('event_msg', { type: 'task_started' }),
+    ]);
+    writeSession(root, 'child', [
+      record('session_meta', {
+        id: 'child-id',
+        cwd: '/Users/admin/Prj',
+        agent_path: '/root/design_review',
+        parent_thread_id: 'root-id',
+      }),
+      record('event_msg', { type: 'task_started' }),
+    ]);
+    const store = new AgentStateStore();
+    const scanner = new CodexSessionScanner(store, '/Users/admin/Prj/pixel-agents', root);
+
+    await scanner.scan();
+
+    const child = [...store.values()].find((agent) => agent.sessionId === 'child-id');
+    expect(child).toMatchObject({
+      leadAgentId: 1,
+      teamName: 'Codex',
+      agentName: 'design review',
+      parentSessionId: 'root-id',
+    });
+  });
+
   it('keeps Done agents, reactivates the same ID, then removes it after expiry', async () => {
     const root = tempRoot();
     const file = writeSession(root, 'active', [

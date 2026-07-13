@@ -202,6 +202,8 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   const agentIds: number[] = [];
   const folderNames: Record<number, string> = {};
   const externalAgents: Record<number, boolean> = {};
+  const parentAgentIds: Record<number, number> = {};
+  const agentNames: Record<number, string> = {};
   for (const [id, agent] of store) {
     agentIds.push(id);
     if (agent.folderName) {
@@ -210,6 +212,8 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     if (agent.isExternal) {
       externalAgents[id] = true;
     }
+    if (agent.leadAgentId !== undefined) parentAgentIds[id] = agent.leadAgentId;
+    if (agent.agentName) agentNames[id] = agent.agentName;
   }
   const seats = adapter?.loadSeats() ?? {};
   send({
@@ -218,17 +222,31 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     agentMeta: seats,
     folderNames,
     externalAgents,
+    parentAgentIds,
+    agentNames,
   });
   // Restore waiting/Done state after the character exists in a newly connected
   // webview. Mark it silent so opening the viewer does not replay old sounds.
   for (const [id, agent] of store) {
-    if (!agent.isWaiting) continue;
-    send({
-      type: 'agentStatus',
-      id,
-      status: 'waiting',
-      awaitingInput: false,
-      silent: true,
-    });
+    if (agent.isWaiting) {
+      send({
+        type: 'agentStatus',
+        id,
+        status: 'waiting',
+        awaitingInput: false,
+        silent: true,
+      });
+    } else if (agent.providerId === 'codex') {
+      send({ type: 'agentStatus', id, status: 'active', silent: true });
+    }
+    for (const toolId of agent.activeToolIds) {
+      send({
+        type: 'agentToolStart',
+        id,
+        toolId,
+        toolName: agent.activeToolNames.get(toolId),
+        status: agent.activeToolStatuses.get(toolId) ?? 'Working',
+      });
+    }
   }
 }

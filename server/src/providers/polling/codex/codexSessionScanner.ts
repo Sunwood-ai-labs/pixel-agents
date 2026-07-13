@@ -15,9 +15,11 @@ export interface CodexSessionInfo {
   jsonlFile: string;
   cwd: string;
   agentPath: string;
+  parentThreadId?: string;
   nickname?: string;
   lastDataAt: number;
   lifecycle: 'active' | 'done';
+  activeTool?: { id: string; name: string; status: string };
 }
 
 interface DiscoveryOptions {
@@ -69,6 +71,7 @@ function recentJsonlFiles(root: string, cutoff: number): string[] {
 async function inspectSession(file: string): Promise<CodexSessionInfo | null> {
   let metadata: Omit<CodexSessionInfo, 'lifecycle'> | null = null;
   let lifecycle: CodexSessionInfo['lifecycle'] | null = null;
+  const activeTools = new Map<string, { name: string; status: string }>();
   let lines = 0;
   const stream = fs.createReadStream(file, { encoding: 'utf8' });
   const reader = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -101,14 +104,41 @@ async function inspectSession(file: string): Promise<CodexSessionInfo | null> {
           jsonlFile: file,
           cwd,
           agentPath: typeof p['agent_path'] === 'string' ? p['agent_path'] : '/root',
+          parentThreadId:
+            typeof p['parent_thread_id'] === 'string' ? p['parent_thread_id'] : undefined,
           nickname: typeof p['agent_nickname'] === 'string' ? p['agent_nickname'] : undefined,
           lastDataAt,
         };
       }
 
       if (record['type'] === 'event_msg') {
-        if (p['type'] === 'task_started') lifecycle = 'active';
-        if (p['type'] === 'task_complete') lifecycle = 'done';
+        if (p['type'] === 'task_started') {
+          lifecycle = 'active';
+          activeTools.clear();
+        }
+        if (p['type'] === 'task_complete') {
+          lifecycle = 'done';
+          activeTools.clear();
+        }
+      }
+
+      if (record['type'] === 'response_item') {
+        const itemType = p['type'];
+        const callId = p['call_id'];
+        if (
+          (itemType === 'custom_tool_call' || itemType === 'function_call') &&
+          typeof callId === 'string'
+        ) {
+          const rawName = typeof p['name'] === 'string' ? p['name'] : 'tool';
+          const namespace = typeof p['namespace'] === 'string' ? p['namespace'] : '';
+          const fullName = namespace ? `${namespace}/${rawName}` : rawName;
+          activeTools.set(callId, classifyTool(fullName));
+        } else if (
+          (itemType === 'custom_tool_call_output' || itemType === 'function_call_output') &&
+          typeof callId === 'string'
+        ) {
+          activeTools.delete(callId);
+        }
       }
     }
   } finally {
@@ -117,7 +147,40 @@ async function inspectSession(file: string): Promise<CodexSessionInfo | null> {
   }
 
   if (!metadata || !lifecycle) return null;
-  return { ...metadata, lifecycle, lastDataAt: metadata.lastDataAt || lines };
+  const lastTool = [...activeTools.entries()].at(-1);
+  return {
+    ...metadata,
+    lifecycle,
+    lastDataAt: metadata.lastDataAt || lines,
+    activeTool:
+      lifecycle === 'active' && lastTool
+        ? { id: lastTool[0], name: lastTool[1].name, status: lastTool[1].status }
+        : undefined,
+  };
+}
+
+function classifyTool(toolName: string): { name: string; status: string } {
+  const normalized = toolName.toLowerCase();
+  if (normalized.includes('apply_patch') || normalized.includes('edit')) {
+    return { name: 'Edit', status: 'Editing code' };
+  }
+  if (
+    normalized.includes('exec') ||
+    normalized.includes('command') ||
+    normalized.includes('write_stdin')
+  ) {
+    return { name: 'Bash', status: 'Running commands' };
+  }
+  if (normalized.includes('web') || normalized.includes('search')) {
+    return { name: 'WebSearch', status: 'Researching' };
+  }
+  if (normalized.includes('view_image') || normalized.includes('read')) {
+    return { name: 'Read', status: 'Reading files' };
+  }
+  if (normalized.includes('collaboration') || normalized.includes('agent')) {
+    return { name: 'Agent', status: 'Coordinating agents' };
+  }
+  return { name: 'Tool', status: 'Working' };
 }
 
 /** Discover live Codex sessions without reading prompt/message content. */
@@ -154,7 +217,21 @@ function displayName(session: CodexSessionInfo): string {
   return session.lifecycle === 'done' ? `${name} · Done` : name;
 }
 
-function makeAgent(id: number, session: CodexSessionInfo): AgentState {
+function taskLabel(session: CodexSessionInfo): string {
+  if (session.agentPath === '/root') return 'Main task';
+  const leaf = session.agentPath.split('/').filter(Boolean).at(-1) ?? 'Sub-agent';
+  return leaf.replaceAll('_', ' ');
+}
+
+function makeAgent(id: number, session: CodexSessionInfo, parentAgentId?: number): AgentState {
+  const activeToolIds = new Set<string>();
+  const activeToolStatuses = new Map<string, string>();
+  const activeToolNames = new Map<string, string>();
+  if (session.activeTool) {
+    activeToolIds.add(session.activeTool.id);
+    activeToolStatuses.set(session.activeTool.id, session.activeTool.status);
+    activeToolNames.set(session.activeTool.id, session.activeTool.name);
+  }
   return {
     id,
     sessionId: session.sessionId,
@@ -164,23 +241,28 @@ function makeAgent(id: number, session: CodexSessionInfo): AgentState {
     jsonlFile: session.jsonlFile,
     fileOffset: 0,
     lineBuffer: '',
-    activeToolIds: new Set(),
-    activeToolStatuses: new Map(),
-    activeToolNames: new Map(),
+    activeToolIds,
+    activeToolStatuses,
+    activeToolNames,
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
     backgroundAgentToolIds: new Set(),
     isWaiting: session.lifecycle === 'done',
     permissionSent: false,
-    hadToolsInTurn: false,
+    hadToolsInTurn: Boolean(session.activeTool),
     folderName: displayName(session),
     lastDataAt: session.lastDataAt,
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     hookDelivered: false,
     providerId: 'codex',
+    parentSessionId: session.parentThreadId,
     inputTokens: 0,
     outputTokens: 0,
+    teamName: 'Codex',
+    agentName: taskLabel(session),
+    isTeamLead: session.agentPath === '/root',
+    leadAgentId: parentAgentId,
   };
 }
 
@@ -216,6 +298,35 @@ export class CodexSessionScanner {
             agent.isWaiting = session.lifecycle === 'done';
             agent.folderName = displayName(session);
             agent.lastDataAt = session.lastDataAt;
+            agent.parentSessionId = session.parentThreadId;
+            agent.leadAgentId = session.parentThreadId
+              ? this.ownedAgents.get(session.parentThreadId)
+              : undefined;
+            agent.agentName = taskLabel(session);
+            const previousToolId = [...agent.activeToolIds][0];
+            const nextTool = session.activeTool;
+            if (previousToolId && previousToolId !== nextTool?.id) {
+              this.store.broadcast({
+                type: 'agentToolDone',
+                id: existingId,
+                toolId: previousToolId,
+              });
+              agent.activeToolIds.clear();
+              agent.activeToolStatuses.clear();
+              agent.activeToolNames.clear();
+            }
+            if (nextTool && !agent.activeToolIds.has(nextTool.id)) {
+              agent.activeToolIds.add(nextTool.id);
+              agent.activeToolStatuses.set(nextTool.id, nextTool.status);
+              agent.activeToolNames.set(nextTool.id, nextTool.name);
+              this.store.broadcast({
+                type: 'agentToolStart',
+                id: existingId,
+                toolId: nextTool.id,
+                toolName: nextTool.name,
+                status: nextTool.status,
+              });
+            }
             if (becameDone) {
               this.store.broadcast({
                 type: 'agentStatus',
@@ -230,8 +341,20 @@ export class CodexSessionScanner {
           continue;
         }
         const id = this.store.nextAgentId.current++;
+        const parentAgentId = session.parentThreadId
+          ? this.ownedAgents.get(session.parentThreadId)
+          : undefined;
         this.ownedAgents.set(session.sessionId, id);
-        this.store.set(id, makeAgent(id, session));
+        this.store.set(id, makeAgent(id, session, parentAgentId));
+        if (session.activeTool) {
+          this.store.broadcast({
+            type: 'agentToolStart',
+            id,
+            toolId: session.activeTool.id,
+            toolName: session.activeTool.name,
+            status: session.activeTool.status,
+          });
+        }
         if (session.lifecycle === 'done') {
           this.store.broadcast({
             type: 'agentStatus',

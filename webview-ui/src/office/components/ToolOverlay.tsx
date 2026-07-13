@@ -22,6 +22,7 @@ import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState, TILE_SIZE } from '../types.js';
+import { shouldShowAgentOverlay } from './overlayVisibility.js';
 
 // Both turn-end states show the green checkmark bubble. A finished turn (Stop)
 // shows ONLY the checkmark (the label falls through to its normal idle text);
@@ -33,6 +34,7 @@ interface ToolOverlayProps {
   officeState: OfficeState;
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
+  agentStatuses: Record<number, string>;
   subagentCharacters: SubagentCharacter[];
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
@@ -84,6 +86,7 @@ export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  agentStatuses,
   subagentCharacters,
   containerRef,
   zoom,
@@ -129,9 +132,22 @@ export function ToolOverlay({
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
+        const isCodexAgent = ch.teamName === 'Codex';
+        const isDone = agentStatuses[id] === 'waiting' && !ch.waitingAwaitingInput;
 
-        // Only show for hovered or selected agents (unless always-show is on)
-        if (!alwaysShowOverlay && !isSelected && !isHovered) return null;
+        // Codex agents expose their current task while active; completed agents
+        // stay quiet unless inspected so a 24h office does not become label soup.
+        if (
+          !shouldShowAgentOverlay({
+            alwaysShowOverlay,
+            isSelected,
+            isHovered,
+            isActiveCodex: isCodexAgent && ch.isActive,
+            isDone,
+          })
+        ) {
+          return null;
+        }
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
@@ -145,19 +161,6 @@ export function ToolOverlay({
         // so overlay counts stay stable and hover/select can still bring the
         // panel back. When always-show is off, the early return above already
         // keeps the panel hidden for idle agents.
-        const isDone = ch.bubbleType === 'waiting' && !ch.waitingAwaitingInput;
-        if (isDone && !isSelected && !isHovered) {
-          return (
-            <div
-              key={id}
-              className="absolute"
-              style={{ left: screenX, top: screenY, pointerEvents: 'none' }}
-              data-testid="agent-overlay"
-              data-agent-id={id}
-            />
-          );
-        }
-
         // Get activity text
         const hasWaitingBubble = ch.bubbleType === 'waiting';
         const subHasPermission = isSub && ch.bubbleType === 'permission';
@@ -181,6 +184,12 @@ export function ToolOverlay({
             ch.bubbleType,
             ch.waitingAwaitingInput ?? false,
           );
+        }
+        if (isCodexAgent) {
+          if (isDone) activityText = 'Done';
+          else if (ch.isActive && !(agentTools[id]?.some((tool) => !tool.done) ?? false)) {
+            activityText = 'Active';
+          }
         }
 
         // Determine dot color

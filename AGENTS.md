@@ -9,6 +9,8 @@ When the requested office is intended to show Codex work, do not treat a healthy
 - Verify both the backing session evidence and a fresh screenshot containing the character before reporting success.
 - If no current Codex session can be adopted, report the office integration as incomplete and name the missing discovery or routing evidence plainly.
 - Do not make real Codex sub-agents disappear the instant they complete. Keep every workspace-related real sub-agent session from the previous 24 hours visibly marked `Done`, then remove it automatically when it ages out; never retain completed root sessions or inflate occupancy with fabricated agents.
+- Preserve Codex lineage from `parent_thread_id`: place children near their visible parent when seats allow, draw restrained parent-child connectors, and expose the provider-derived task handle for active agents. Nested descendants must remain independently traceable rather than appearing as an unrelated crowd.
+- Provider ownership is a hard boundary in the shared store: Claude team discovery/removal must never adopt, dissolve, or delete Codex-owned hierarchy agents, and the same rule applies in reverse.
 
 ## Viewer-first control chrome
 
