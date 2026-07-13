@@ -152,6 +152,9 @@ export class AgentStateStore {
     }
     const persisted: PersistedAgent[] = [];
     for (const agent of this.agents.values()) {
+      // Remote API agents are lease-owned telemetry. Their source PC must
+      // re-upsert after a server restart; restoring them would create ghosts.
+      if (agent.providerId === 'remote') continue;
       persisted.push({
         id: agent.id,
         sessionId: agent.sessionId,

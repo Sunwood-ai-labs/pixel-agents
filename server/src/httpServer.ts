@@ -10,6 +10,7 @@ import type { AgentStateStore } from './agentStateStore.js';
 import type { AssetCache, SetHooksEnabledSideEffect } from './clientMessageHandler.js';
 import { handleClientMessage } from './clientMessageHandler.js';
 import { HOOK_API_PREFIX, MAX_HOOK_BODY_SIZE } from './constants.js';
+import type { RemoteAgentRegistry, RemoteAgentUpdate } from './remoteAgentRegistry.js';
 import type { AgentState } from './types.js';
 
 /** Options for creating the HTTP + WebSocket server. */
@@ -22,6 +23,8 @@ export interface HttpServerOptions {
   port?: number;
   /** Bearer auth token for hook and WebSocket endpoints */
   token: string;
+  /** Separate bearer token for remote-PC telemetry/control API. */
+  remoteApiToken: string;
   /** AgentStateStore for WebSocket broadcast piping */
   store: AgentStateStore;
   /** Shared agent lifecycle core (for toggle side effects + standalone restore). Optional in embedded mode. */
@@ -34,6 +37,8 @@ export interface HttpServerOptions {
   onHookEvent?: (providerId: string, event: Record<string, unknown>) => void;
   /** Invoked when setHooksEnabled is toggled via WebSocket. Standalone installs/uninstalls hooks here. */
   onSetHooksEnabled?: SetHooksEnabledSideEffect;
+  /** Authenticated external-PC agent state registry. */
+  remoteAgentRegistry?: RemoteAgentRegistry;
 }
 
 /** Result of createHttpServer(). */
@@ -75,6 +80,7 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
   registerHealthRoute(app);
   registerHookRoute(app, options);
+  registerRemoteAgentRoutes(app, options);
   registerWebSocketRoute(app, options);
 
   // ── Listen ──────────────────────────────────────────────────
@@ -84,6 +90,84 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
   const port = typeof address === 'object' ? (address?.port ?? 0) : 0;
 
   return { app, port };
+}
+
+// ── Remote Agent API ───────────────────────────────────────────
+
+const REMOTE_ID_PATTERN = '^[A-Za-z0-9._-]{1,64}$';
+
+function registerRemoteAgentRoutes(app: FastifyInstance, options: HttpServerOptions): void {
+  const registry = options.remoteAgentRegistry;
+  if (!registry) return;
+  const auth = bearerAuth(options.remoteApiToken);
+  const paramsSchema = {
+    type: 'object',
+    properties: {
+      hostId: { type: 'string', pattern: REMOTE_ID_PATTERN },
+      agentId: { type: 'string', pattern: REMOTE_ID_PATTERN },
+    },
+    required: ['hostId', 'agentId'],
+  } as const;
+  const bodySchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['displayName', 'task', 'status'],
+    properties: {
+      displayName: { type: 'string', minLength: 1, maxLength: 80 },
+      task: { type: 'string', minLength: 1, maxLength: 80 },
+      status: { type: 'string', enum: ['active', 'waiting', 'done'] },
+      activity: { type: 'string', maxLength: 120 },
+      heartbeatTtlSeconds: { type: 'integer', minimum: 15, maximum: 3600 },
+      progress: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['current', 'total'],
+        properties: {
+          current: { type: 'number', minimum: 0 },
+          total: { type: 'number', exclusiveMinimum: 0 },
+          unit: { type: 'string', maxLength: 24 },
+        },
+      },
+      parent: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['hostId', 'agentId'],
+        properties: {
+          hostId: { type: 'string', pattern: REMOTE_ID_PATTERN },
+          agentId: { type: 'string', pattern: REMOTE_ID_PATTERN },
+        },
+      },
+    },
+  } as const;
+
+  app.get('/api/remote/v1/agents', { preHandler: auth }, async () => ({
+    agents: registry.list(),
+  }));
+
+  app.put<{
+    Params: { hostId: string; agentId: string };
+    Body: RemoteAgentUpdate;
+  }>(
+    '/api/remote/v1/hosts/:hostId/agents/:agentId',
+    { preHandler: auth, schema: { params: paramsSchema, body: bodySchema } },
+    async (request, reply) => {
+      if (request.body.progress && request.body.progress.current > request.body.progress.total) {
+        return reply.code(400).send({ error: 'progress_current_exceeds_total' });
+      }
+      return registry.upsert(request.params.hostId, request.params.agentId, request.body);
+    },
+  );
+
+  app.delete<{ Params: { hostId: string; agentId: string } }>(
+    '/api/remote/v1/hosts/:hostId/agents/:agentId',
+    { preHandler: auth, schema: { params: paramsSchema } },
+    async (request, reply) => {
+      if (!registry.remove(request.params.hostId, request.params.agentId)) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
+      return reply.code(204).send();
+    },
+  );
 }
 
 // ── Health ──────────────────────────────────────────────────────
@@ -133,9 +217,8 @@ function registerHookRoute(app: FastifyInstance, options: HttpServerOptions): vo
 
 function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions): void {
   app.get('/ws', { websocket: true }, (socket, request) => {
-    // In standalone mode (not embedded), skip auth for WebSocket connections.
-    // The server binds to 127.0.0.1, so only local clients can connect.
-    // In embedded mode (VS Code), require Bearer token for security.
+    // Embedded VS Code clients authenticate the WebSocket itself. Standalone
+    // viewers connect without a token and are therefore always read-only.
     if (options.embedded) {
       const auth = request.headers.authorization ?? '';
       const expected = `Bearer ${options.token}`;
@@ -180,6 +263,12 @@ function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions
     socket.on('message', (data: Buffer | string) => {
       try {
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        // An unauthenticated standalone viewer may subscribe to the office but
+        // never mutate server settings. This remains safe behind a local reverse
+        // proxy, where every peer can otherwise appear to come from loopback.
+        if (!options.embedded && msg.type !== 'webviewReady') {
+          return;
+        }
         if (!options.embedded && msg.type) {
           console.log('[Pixel Agents] WS client message:', msg.type);
         }

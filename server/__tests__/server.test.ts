@@ -93,6 +93,87 @@ describe('PixelAgentsServer', () => {
     expect(res.status).toBe(200);
   });
 
+  it('remote agent API requires its separate token and supports upsert/list/delete', async () => {
+    const config = await server.start();
+    const url = `http://127.0.0.1:${config.port}/api/remote/v1/hosts/pc-a/agents/worker-1`;
+    const body = JSON.stringify({
+      displayName: 'Worker One',
+      task: 'Remote tests',
+      status: 'active',
+      activity: 'Running tests',
+      progress: { current: 3, total: 8, unit: 'tests' },
+    });
+
+    expect(
+      (
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.token}`,
+          },
+          body,
+        })
+      ).status,
+    ).toBe(401);
+
+    const created = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.remoteApiToken}`,
+      },
+      body,
+    });
+    expect(created.status).toBe(200);
+    const snapshot = (await created.json()) as { localAgentId: number };
+    expect(snapshot.localAgentId).toBeGreaterThan(0);
+
+    const listed = await fetch(`http://127.0.0.1:${config.port}/api/remote/v1/agents`, {
+      headers: { Authorization: `Bearer ${config.remoteApiToken}` },
+    });
+    expect(((await listed.json()) as { agents: unknown[] }).agents).toHaveLength(1);
+
+    expect(
+      (
+        await fetch(url, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${config.remoteApiToken}` },
+        })
+      ).status,
+    ).toBe(204);
+  });
+
+  it('remote agent API rejects invalid progress totals', async () => {
+    const config = await server.start();
+    const res = await fetch(
+      `http://127.0.0.1:${config.port}/api/remote/v1/hosts/pc-a/agents/worker-1`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.remoteApiToken}`,
+        },
+        body: JSON.stringify({
+          displayName: 'Worker',
+          task: 'Bad progress',
+          status: 'active',
+          progress: { current: 1, total: 0 },
+        }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
+
   // 5. Hook callback fires on valid event
   it('hook callback fires on valid event', async () => {
     const config = await server.start();

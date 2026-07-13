@@ -99,6 +99,7 @@ components:
         # Agent Teams
         - $ref: '#/components/schemas/AgentTeamInfo'
         - $ref: '#/components/schemas/AgentTokenUsage'
+        - $ref: '#/components/schemas/AgentRemoteProgress'
         # Layout
         - $ref: '#/components/schemas/LayoutLoaded'
         # Assets
@@ -426,6 +427,41 @@ components:
           type: integer
         outputTokens:
           type: integer
+
+    AgentRemoteProgress:
+      description: Remote-PC origin, freshness, and optional measurable progress.
+      type: object
+      additionalProperties: false
+      required: [type, id, hostId, connectionState, lastSeenAt]
+      properties:
+        type:
+          const: agentRemoteProgress
+        id:
+          type: integer
+        hostId:
+          type: string
+        connectionState:
+          $ref: '#/components/schemas/RemoteConnectionState'
+        lastSeenAt:
+          type: integer
+        progress:
+          $ref: '#/components/schemas/RemoteProgress'
+
+    RemoteProgress:
+      type: object
+      additionalProperties: false
+      required: [current, total]
+      properties:
+        current:
+          type: number
+        total:
+          type: number
+        unit:
+          type: string
+
+    RemoteConnectionState:
+      type: string
+      enum: [connected, offline]
 
     LayoutLoaded:
       description: |

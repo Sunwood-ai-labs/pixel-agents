@@ -11,6 +11,8 @@ import {
   FUEL_GAUGE_HEIGHT_PX,
   FUEL_GAUGE_WIDTH_PX,
   MAX_CONTEXT_TOKENS,
+  REMOTE_OFFLINE_COLOR,
+  REMOTE_PROGRESS_COLOR,
   TEAM_LEAD_COLOR,
   TEAM_ROLE_COLOR,
   TOKEN_CRITICAL_THRESHOLD,
@@ -29,6 +31,14 @@ import { shouldShowAgentOverlay } from './overlayVisibility.js';
 // going idle waiting on the user (Notification(idle_prompt)) additionally
 // surfaces this label. Driven by Character.waitingAwaitingInput.
 const WAITING_INPUT_ACTIVITY_TEXT = 'Waiting for input';
+
+function formatLastSeen(lastSeenAt: number | undefined): string | null {
+  if (!lastSeenAt) return null;
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - lastSeenAt) / 1000));
+  if (elapsedSeconds < 60) return `${elapsedSeconds}s ago`;
+  if (elapsedSeconds < 3600) return `${Math.floor(elapsedSeconds / 60)}m ago`;
+  return `${Math.floor(elapsedSeconds / 3600)}h ago`;
+}
 
 interface ToolOverlayProps {
   officeState: OfficeState;
@@ -133,7 +143,10 @@ export function ToolOverlay({
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
         const isCodexAgent = ch.teamName === 'Codex';
-        const isDone = agentStatuses[id] === 'waiting' && !ch.waitingAwaitingInput;
+        const isRemoteAgent = !!ch.remoteHostId;
+        const isDone =
+          ch.remoteConnectionState === 'offline' ||
+          (agentStatuses[id] === 'waiting' && !ch.waitingAwaitingInput);
 
         // Codex agents expose their current task while active; completed agents
         // stay quiet unless inspected so a 24h office does not become label soup.
@@ -142,7 +155,9 @@ export function ToolOverlay({
             alwaysShowOverlay,
             isSelected,
             isHovered,
-            isActiveCodex: isCodexAgent && ch.isActive,
+            isActiveCodex:
+              (isCodexAgent && ch.isActive) ||
+              (isRemoteAgent && ch.remoteConnectionState !== 'offline'),
             isDone,
           })
         ) {
@@ -191,6 +206,7 @@ export function ToolOverlay({
             activityText = 'Active';
           }
         }
+        if (ch.remoteConnectionState === 'offline') activityText = 'OFFLINE';
 
         // Determine dot color
         const tools = agentTools[id];
@@ -200,7 +216,9 @@ export function ToolOverlay({
         const hasWaiting = ch.bubbleType === 'waiting';
 
         let dotColor: string | null = null;
-        if (hasPermission || hasWaiting) {
+        if (ch.remoteConnectionState === 'offline') {
+          dotColor = REMOTE_OFFLINE_COLOR;
+        } else if (hasPermission || hasWaiting) {
           dotColor = 'var(--color-status-permission)';
         } else if (isActive && hasActiveTools) {
           dotColor = 'var(--color-status-active)';
@@ -211,7 +229,21 @@ export function ToolOverlay({
         const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
         const totalTokens = ch.inputTokens + ch.outputTokens;
         const tokenRatio = totalTokens / MAX_CONTEXT_TOKENS;
-        const hasExtraLines = !!(ch.folderName || teamRoleLabel);
+        const remoteProgress = ch.remoteProgress;
+        const progressRatio = remoteProgress
+          ? Math.min(1, Math.max(0, remoteProgress.current / remoteProgress.total))
+          : 0;
+        const lastSeen = formatLastSeen(ch.remoteLastSeenAt);
+        const remoteLine = ch.remoteHostId
+          ? [
+              ch.remoteConnectionState === 'offline' ? 'OFFLINE' : 'REMOTE',
+              ch.remoteHostId,
+              ch.remoteConnectionState === 'offline' ? lastSeen : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : null;
+        const hasExtraLines = !!(ch.folderName || teamRoleLabel || remoteLine);
 
         return (
           <div
@@ -226,6 +258,11 @@ export function ToolOverlay({
             }}
             data-testid="agent-overlay"
             data-agent-id={id}
+            title={
+              remoteLine
+                ? `${remoteLine}; ${activityText}${remoteProgress ? `; ${Math.round(progressRatio * 100)} percent` : ''}`
+                : undefined
+            }
           >
             <div className="flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs">
               {dotColor && (
@@ -261,6 +298,17 @@ export function ToolOverlay({
                     {ch.folderName}
                   </span>
                 )}
+                {remoteLine && (
+                  <span
+                    className="text-2xs leading-none overflow-hidden text-ellipsis block"
+                    style={{
+                      color:
+                        ch.remoteConnectionState === 'offline' ? REMOTE_OFFLINE_COLOR : undefined,
+                    }}
+                  >
+                    {remoteLine}
+                  </span>
+                )}
               </div>
               {isSelected && !isSub && (
                 <Button
@@ -294,6 +342,32 @@ export function ToolOverlay({
                     background: getFuelColor(tokenRatio),
                   }}
                 />
+              </div>
+            )}
+            {remoteProgress && (
+              <div
+                className="flex items-center gap-3 mt-2"
+                aria-label={`Progress ${Math.round(progressRatio * 100)} percent`}
+              >
+                <div
+                  style={{
+                    width: FUEL_GAUGE_WIDTH_PX,
+                    height: FUEL_GAUGE_HEIGHT_PX,
+                    background: FUEL_GAUGE_BG,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${progressRatio * 100}%`,
+                      height: '100%',
+                      background: REMOTE_PROGRESS_COLOR,
+                    }}
+                  />
+                </div>
+                <span className="text-2xs whitespace-nowrap">
+                  {remoteProgress.current}/{remoteProgress.total}
+                  {remoteProgress.unit ? ` ${remoteProgress.unit}` : ''}
+                </span>
               </div>
             )}
           </div>

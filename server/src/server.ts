@@ -5,10 +5,11 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { AgentRuntime } from './agentRuntime.js';
-import type { AgentStateStore } from './agentStateStore.js';
+import { AgentStateStore } from './agentStateStore.js';
 import type { AssetCache, SetHooksEnabledSideEffect } from './clientMessageHandler.js';
 import { SERVER_JSON_DIR, SERVER_JSON_NAME } from './constants.js';
 import { createHttpServer } from './httpServer.js';
+import { RemoteAgentRegistry } from './remoteAgentRegistry.js';
 
 /** Discovery file written to ~/.pixel-agents/server.json so hook scripts can find the server. */
 export interface ServerConfig {
@@ -18,6 +19,8 @@ export interface ServerConfig {
   pid: number;
   /** Auth token required in Authorization header for hook requests */
   token: string;
+  /** Separate token for the external Remote Agent API. */
+  remoteApiToken: string;
   /** Timestamp (ms) when the server started */
   startedAt: number;
   /**
@@ -51,6 +54,7 @@ export class PixelAgentsServer {
   private config: ServerConfig | null = null;
   private ownsServer = false;
   private callback: HookEventCallback | null = null;
+  private remoteAgentRegistry: RemoteAgentRegistry | null = null;
 
   /** Register a callback for incoming hook events from any provider. */
   onHookEvent(callback: HookEventCallback): void {
@@ -70,6 +74,8 @@ export class PixelAgentsServer {
     staticDir?: string;
     assetCache?: AssetCache;
     onSetHooksEnabled?: SetHooksEnabledSideEffect;
+    apiToken?: string;
+    remoteApiToken?: string;
   }): Promise<ServerConfig> {
     // Check if another instance already has a server running
     const existing = this.readServerJson();
@@ -83,20 +89,27 @@ export class PixelAgentsServer {
     }
 
     // Start our own server
-    const token = crypto.randomUUID();
-    const store = options?.store;
+    const token = options?.apiToken ?? process.env['PIXEL_AGENTS_API_TOKEN'] ?? crypto.randomUUID();
+    const remoteApiToken =
+      options?.remoteApiToken ??
+      process.env['PIXEL_AGENTS_REMOTE_API_TOKEN'] ??
+      crypto.randomUUID();
+    const store = options?.store ?? new AgentStateStore();
+    this.remoteAgentRegistry = new RemoteAgentRegistry(store);
 
     const { app, port } = await createHttpServer({
       embedded: options?.embedded ?? true,
       host: options?.host,
       port: options?.port,
       token,
-      store: store!,
+      remoteApiToken,
+      store,
       runtime: options?.runtime,
       staticDir: options?.staticDir,
       assetCache: options?.assetCache,
       onHookEvent: (providerId, event) => this.callback?.(providerId, event),
       onSetHooksEnabled: options?.onSetHooksEnabled,
+      remoteAgentRegistry: this.remoteAgentRegistry,
     });
 
     this.app = app;
@@ -104,6 +117,7 @@ export class PixelAgentsServer {
       port,
       pid: process.pid,
       token,
+      remoteApiToken,
       startedAt: Date.now(),
       // Diagnostic-only: forward the debug-log path to the hook script via
       // server.json (env vars don't reach the spawned hook reliably).
@@ -113,7 +127,7 @@ export class PixelAgentsServer {
     };
     this.ownsServer = true;
     this.writeServerJson(this.config);
-    console.log(`[Pixel Agents] Server: listening on 127.0.0.1:${port}`);
+    console.log(`[Pixel Agents] Server: listening on ${options?.host ?? '127.0.0.1'}:${port}`);
 
     return this.config;
   }
@@ -124,6 +138,8 @@ export class PixelAgentsServer {
       this.app.close();
       this.app = null;
     }
+    this.remoteAgentRegistry?.dispose();
+    this.remoteAgentRegistry = null;
     if (this.ownsServer) {
       this.deleteServerJson();
     }

@@ -896,10 +896,34 @@ export class OfficeState {
   ): void {
     const ch = this.characters.get(id);
     if (!ch) return;
+    const previousLeadAgentId = ch.leadAgentId;
     ch.teamName = teamName;
     ch.agentName = agentName;
     ch.isTeamLead = isTeamLead;
     ch.leadAgentId = leadAgentId;
+    // Remote children may arrive before their parent. Once a late parent link
+    // resolves, move the child to the closest available desk instead of only
+    // drawing a long connection across the office. Replays with an unchanged
+    // parent do not reshuffle an already clustered team.
+    if (leadAgentId !== undefined && previousLeadAgentId !== leadAgentId) {
+      const nearbySeatId = this.findNearestFreeSeat(leadAgentId);
+      if (nearbySeatId) this.reassignSeat(id, nearbySeatId);
+    } else if (
+      leadAgentId !== undefined &&
+      previousLeadAgentId === leadAgentId &&
+      this.characters.has(leadAgentId)
+    ) {
+      const parent = this.characters.get(leadAgentId)!;
+      const currentDistance = (ch.x - parent.x) ** 2 + (ch.y - parent.y) ** 2;
+      const nearbySeatId = this.findNearestFreeSeat(leadAgentId);
+      const nearbySeat = nearbySeatId ? this.seats.get(nearbySeatId) : undefined;
+      if (nearbySeat) {
+        const nearbyX = nearbySeat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+        const nearbyY = nearbySeat.seatRow * TILE_SIZE + TILE_SIZE / 2;
+        const nearbyDistance = (nearbyX - parent.x) ** 2 + (nearbyY - parent.y) ** 2;
+        if (nearbyDistance < currentDistance) this.reassignSeat(id, nearbySeatId!);
+      }
+    }
     if (teamUsesTmux !== undefined) {
       ch.teamUsesTmux = teamUsesTmux;
     }
@@ -910,6 +934,21 @@ export class OfficeState {
     if (!ch) return;
     ch.inputTokens = inputTokens;
     ch.outputTokens = outputTokens;
+  }
+
+  setRemoteProgress(
+    id: number,
+    hostId: string,
+    connectionState: 'connected' | 'offline',
+    lastSeenAt: number,
+    progress?: { current: number; total: number; unit?: string },
+  ): void {
+    const ch = this.characters.get(id);
+    if (!ch) return;
+    ch.remoteHostId = hostId;
+    ch.remoteConnectionState = connectionState;
+    ch.remoteLastSeenAt = lastSeenAt;
+    ch.remoteProgress = progress;
   }
 
   update(dt: number): void {

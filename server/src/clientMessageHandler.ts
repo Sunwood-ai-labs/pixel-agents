@@ -228,6 +228,17 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // Restore waiting/Done state after the character exists in a newly connected
   // webview. Mark it silent so opening the viewer does not replay old sounds.
   for (const [id, agent] of store) {
+    if (agent.teamName) {
+      send({
+        type: 'agentTeamInfo',
+        id,
+        teamName: agent.teamName,
+        agentName: agent.agentName,
+        isTeamLead: agent.isTeamLead,
+        leadAgentId: agent.leadAgentId,
+        teamUsesTmux: agent.teamUsesTmux,
+      });
+    }
     if (agent.isWaiting) {
       send({
         type: 'agentStatus',
@@ -246,6 +257,16 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
         toolId,
         toolName: agent.activeToolNames.get(toolId),
         status: agent.activeToolStatuses.get(toolId) ?? 'Working',
+      });
+    }
+    if (agent.remoteHostId && agent.remoteConnectionState) {
+      send({
+        type: 'agentRemoteProgress',
+        id,
+        hostId: agent.remoteHostId,
+        connectionState: agent.remoteConnectionState,
+        lastSeenAt: agent.lastDataAt,
+        progress: agent.remoteProgress,
       });
     }
   }

@@ -204,6 +204,11 @@ export interface Character {
   inputTokens: number;
   /** Cumulative output tokens consumed */
   outputTokens: number;
+  /** Remote telemetry origin; absent for local Claude/Codex agents. */
+  remoteHostId?: string;
+  remoteConnectionState?: 'connected' | 'offline';
+  remoteLastSeenAt?: number;
+  remoteProgress?: { current: number; total: number; unit?: string };
 }
 
 export const PetState = { IDLE: 'idle', WALK: 'walk', FOLLOW: 'follow' } as const;

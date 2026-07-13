@@ -47,6 +47,7 @@ function parseArgs(argv: string[]): CliArgs {
 Options:
   --port, -p <number>   Port to listen on (default: 3100)
   --host <string>       Host to bind to (default: 127.0.0.1)
+  PIXEL_AGENTS_REMOTE_API_TOKEN  Stable bearer token for remote agent API clients
   --help                Show this help message`);
       process.exit(0);
     }

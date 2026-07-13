@@ -26,4 +26,16 @@ describe('shouldShowAgentOverlay', () => {
       }),
     ).toBe(true);
   });
+
+  it('keeps an offline remote panel quiet until inspected', () => {
+    expect(
+      shouldShowAgentOverlay({
+        alwaysShowOverlay: true,
+        isSelected: false,
+        isHovered: false,
+        isActiveCodex: false,
+        isDone: true,
+      }),
+    ).toBe(false);
+  });
 });

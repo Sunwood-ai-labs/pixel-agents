@@ -161,6 +161,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .pixel-pulse {
+    animation: none !important;
+  }
+}
+
 /* Compact screens keep the office canvas immersive while moving controls into
    safe, touchable zones. Desktop and VS Code panel sizing remain unchanged. */
 @media (max-width: 640px), (max-height: 560px) {

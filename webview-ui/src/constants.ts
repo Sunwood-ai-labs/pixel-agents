@@ -160,6 +160,8 @@ export const FUEL_GAUGE_BG = '#222';
 export const TEAM_LEAD_COLOR = '#ffd700';
 export const TEAM_ROLE_COLOR = '#66aaff';
 export const AGENT_CONNECTION_COLOR = '#7aa2d6';
+export const REMOTE_PROGRESS_COLOR = '#5aa9ff';
+export const REMOTE_OFFLINE_COLOR = '#9aa0aa';
 
 // ── Pets ────────────────────────────────────────────────────────
 /** Walking speed in world pixels per second (matches character walk speed visually but slower). */

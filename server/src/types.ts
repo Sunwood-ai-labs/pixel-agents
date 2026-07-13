@@ -60,6 +60,12 @@ export interface AgentState {
   leadAgentId?: number;
   /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
   teamUsesTmux?: boolean;
+
+  // -- Remote API agents --
+  remoteHostId?: string;
+  remoteAgentKey?: string;
+  remoteConnectionState?: 'connected' | 'offline';
+  remoteProgress?: { current: number; total: number; unit?: string };
 }
 
 export interface PersistedAgent {

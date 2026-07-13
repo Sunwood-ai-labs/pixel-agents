@@ -11,6 +11,7 @@ When the requested office is intended to show Codex work, do not treat a healthy
 - Do not make real Codex sub-agents disappear the instant they complete. Keep every workspace-related real sub-agent session from the previous 24 hours visibly marked `Done`, then remove it automatically when it ages out; never retain completed root sessions or inflate occupancy with fabricated agents.
 - Preserve Codex lineage from `parent_thread_id`: place children near their visible parent when seats allow, draw restrained parent-child connectors, and expose the provider-derived task handle for active agents. Nested descendants must remain independently traceable rather than appearing as an unrelated crowd.
 - Provider ownership is a hard boundary in the shared store: Claude team discovery/removal must never adopt, dissolve, or delete Codex-owned hierarchy agents, and the same rule applies in reverse.
+- Remote-PC integration is telemetry/control-plane only by default: use a dedicated Remote API bearer token, keep the Claude hook token private, make every unauthenticated standalone WebSocket client read-only (including loopback and reverse-proxy connections), and never add arbitrary command execution without a separate signed worker/queue design.
 
 ## Viewer-first control chrome
 

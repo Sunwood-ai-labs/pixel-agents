@@ -25,6 +25,7 @@ export type ServerMessage =
   | SubagentToolPermission
   | AgentTeamInfo
   | AgentTokenUsage
+  | AgentRemoteProgress
   | LayoutLoaded
   | FurnitureAssetsLoaded
   | CharacterSpritesLoaded
@@ -178,6 +179,23 @@ export interface AgentTokenUsage {
   id: number;
   inputTokens: number;
   outputTokens: number;
+}
+
+export interface AgentRemoteProgress {
+  type: 'agentRemoteProgress';
+  id: number;
+  hostId: string;
+  connectionState: RemoteConnectionState;
+  lastSeenAt: number;
+  progress?: RemoteProgress;
+}
+
+export type RemoteConnectionState = 'connected' | 'offline';
+
+export interface RemoteProgress {
+  current: number;
+  total: number;
+  unit?: string;
 }
 
 export interface LayoutLoaded {

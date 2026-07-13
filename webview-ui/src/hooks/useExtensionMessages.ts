@@ -603,6 +603,14 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentTokenUsage') {
         const id = msg.id as number;
         os.setAgentTokens(id, msg.inputTokens as number, msg.outputTokens as number);
+      } else if (msg.type === 'agentRemoteProgress') {
+        os.setRemoteProgress(
+          msg.id as number,
+          msg.hostId as string,
+          msg.connectionState as 'connected' | 'offline',
+          msg.lastSeenAt as number,
+          msg.progress as { current: number; total: number; unit?: string } | undefined,
+        );
       }
     };
     const unsubscribe = transport.onMessage(handler);

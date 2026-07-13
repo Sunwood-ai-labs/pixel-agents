@@ -39,6 +39,7 @@ Internally, the architecture is agent-agnostic and platform-agnostic. Claude Cod
 
 - **One agent, one character** — active Claude Code and Codex sessions get their own animated characters
 - **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
+- **Remote Agent API** — other PCs can report authenticated tasks, progress, heartbeat state, and parent/child relationships to one central office
 - **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
 - **Sound notifications** — optional chime when an agent finishes its turn
@@ -79,6 +80,8 @@ node dist/cli.js                 # or npx pixel-agents [--port 3100] after publi
 ```
 
 It starts the Fastify server, opens the webview SPA at `http://localhost:3100`, and (in the same `~/.pixel-agents/` namespace) shares your hooks and layout with the VS Code extension if both are running.
+
+To use one office as a central viewer for multiple PCs, see the [Remote Agent API guide](docs/remote-agent-api.md).
 
 ### Browser Preview & Hosted Reports
 
