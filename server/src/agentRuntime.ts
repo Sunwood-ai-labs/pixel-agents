@@ -71,7 +71,7 @@ export class AgentRuntime {
 
   constructor(
     private readonly store: AgentStateStore,
-    provider: HookProvider,
+    private readonly provider: HookProvider,
   ) {
     // Wire module-level dependencies
     setDismissalTracker(this.dismissalTracker);
@@ -335,6 +335,9 @@ export class AgentRuntime {
 
     for (const p of persisted) {
       if (!p.isExternal) continue;
+      // Polling providers restore their own sessions. Legacy entries without a
+      // providerId belong to the original Claude runtime.
+      if (p.providerId && p.providerId !== this.provider.id) continue;
       try {
         if (!fs.existsSync(p.jsonlFile)) continue;
       } catch {

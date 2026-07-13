@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   CAMERA_FOLLOW_LERP,
   CAMERA_FOLLOW_SNAP_THRESHOLD,
+  COMPANY_NAME,
   PAN_MARGIN_FRACTION,
   ZOOM_MAX,
   ZOOM_MIN,
@@ -22,6 +23,7 @@ import type {
 } from '../engine/renderer.js';
 import { renderFrame } from '../engine/renderer.js';
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js';
+import { computeOfficeView } from '../officeZoom.js';
 import { EditTool, TILE_SIZE } from '../types.js';
 import { computeNormalModeCursor } from './officeCanvasCursor.js';
 
@@ -71,6 +73,15 @@ export function OfficeCanvas({
   const isEraseDraggingRef = useRef(false);
   // Zoom scroll accumulator for trackpad pinch sensitivity
   const zoomAccumulatorRef = useRef(0);
+  // Null until the first layout-aware fit. Once the user selects another zoom,
+  // resize events stop overriding their choice.
+  const lastAutoZoomRef = useRef<number | null>(null);
+
+  // Canvas text does not trigger a web-font download by itself in every browser.
+  // Request the Google Font explicitly; the render loop picks it up as soon as it is ready.
+  useEffect(() => {
+    void document.fonts.load("700 12px 'Silkscreen'");
+  }, []);
 
   // Clamp pan so the map edge can't go past a margin inside the viewport
   const clampPan = useCallback(
@@ -103,8 +114,25 @@ export function OfficeCanvas({
     canvas.height = Math.round(rect.height * dpr);
     canvas.style.width = `${rect.width}px`;
     canvas.style.height = `${rect.height}px`;
+    const layout = officeState.getLayout();
+    const fittedView = computeOfficeView(
+      canvas.width,
+      canvas.height,
+      rect.width,
+      rect.height,
+      dpr,
+      officeState.tileMap,
+      layout.cols,
+      layout.rows,
+    );
+    const mayAutoFit = lastAutoZoomRef.current === null || zoom === lastAutoZoomRef.current;
+    if (mayAutoFit) {
+      lastAutoZoomRef.current = fittedView.zoom;
+      panRef.current = { x: fittedView.panX, y: fittedView.panY };
+      if (fittedView.zoom !== zoom) onZoomChange(fittedView.zoom);
+    }
     // No ctx.scale(dpr) — we render directly in device pixels
-  }, []);
+  }, [officeState, onZoomChange, panRef, zoom]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -827,6 +855,7 @@ export function OfficeCanvas({
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-bg">
       <canvas
         ref={canvasRef}
+        aria-label={`${COMPANY_NAME} animated office`}
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}

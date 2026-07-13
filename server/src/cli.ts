@@ -22,7 +22,7 @@ import {
 } from './assetLoader.js';
 import type { AssetCache } from './clientMessageHandler.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
-import { claudeProvider, copyHookScript } from './providers/index.js';
+import { claudeProvider, CodexSessionScanner, copyHookScript } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
 
 // ── Argument parsing ──────────────────────────────────────────
@@ -153,11 +153,17 @@ async function main(): Promise<void> {
       runtime.startStaleCheck();
     }
 
+    // Mirror active Codex desktop/CLI tasks into the same office. Codex has no
+    // hook installer here, so its authoritative local rollout files are polled.
+    const codexScanner = new CodexSessionScanner(store, cwd);
+    await codexScanner.start();
+
     console.log(`\n  Pixel Agents server running at http://${args.host}:${config.port}\n`);
 
     // ── Graceful shutdown ──
     function shutdown(): void {
       console.log('\nShutting down...');
+      codexScanner.dispose();
       runtime.dispose();
       server.stop();
       process.exit(0);

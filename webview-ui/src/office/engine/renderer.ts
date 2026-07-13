@@ -11,6 +11,14 @@ import {
   BUTTON_RADIUS_ZOOM_FACTOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
+  COMPANY_NAME,
+  COMPANY_SIGN_FACE_COLOR,
+  COMPANY_SIGN_FRAME_COLOR,
+  COMPANY_SIGN_FRAME_HIGHLIGHT_COLOR,
+  COMPANY_SIGN_HANGER_COLOR,
+  COMPANY_SIGN_RIVET_COLOR,
+  COMPANY_SIGN_SHADOW_COLOR,
+  COMPANY_SIGN_TEXT_COLOR,
   DELETE_BUTTON_BG,
   FALLBACK_FLOOR_COLOR,
   GHOST_BORDER_HOVER_FILL,
@@ -53,8 +61,11 @@ import type {
 import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
+import { computeCompanySignLayout } from './companySign.js';
 import { renderMatrixEffect } from './matrixEffect.js';
 import { getPetSpriteData } from './petEntity.js';
+
+const SIGN_FONT_FAMILY = "'Silkscreen', 'FS Pixel Sans', monospace";
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -238,6 +249,72 @@ export function renderScene(
   for (const d of drawables) {
     d.draw(ctx);
   }
+}
+
+/** Draw the company plaque in world space so it follows office zoom and pan. */
+export function renderCompanySign(
+  ctx: CanvasRenderingContext2D,
+  tileMap: TileTypeVal[][],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  cols: number,
+  companyName: string = COMPANY_NAME,
+): void {
+  const layout = computeCompanySignLayout(tileMap, offsetX, offsetY, zoom, cols, companyName);
+  if (!layout) return;
+  const { fontSize, signHeight, signWidth, signX, signY, visibleTop } = layout;
+  const border = Math.max(2, 2 * zoom);
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+
+  // Two short hangers visually connect the plaque to the office wall.
+  ctx.fillStyle = COMPANY_SIGN_HANGER_COLOR;
+  const hangerWidth = Math.max(2, 2 * zoom);
+  for (const anchor of [0.22, 0.78]) {
+    const x = signX + signWidth * anchor - hangerWidth / 2;
+    ctx.fillRect(x, signY + signHeight, hangerWidth, Math.max(0, visibleTop - signY - signHeight));
+  }
+
+  // Hard-edged pixel shadow, brass frame, and ink-blue face.
+  ctx.fillStyle = COMPANY_SIGN_SHADOW_COLOR;
+  ctx.fillRect(signX + 4 * zoom, signY + 4 * zoom, signWidth, signHeight);
+  ctx.fillStyle = COMPANY_SIGN_FRAME_COLOR;
+  ctx.fillRect(signX, signY, signWidth, signHeight);
+  ctx.fillStyle = COMPANY_SIGN_FRAME_HIGHLIGHT_COLOR;
+  ctx.fillRect(signX + border, signY + border, signWidth - border * 2, signHeight - border * 2);
+  ctx.fillStyle = COMPANY_SIGN_FACE_COLOR;
+  ctx.fillRect(
+    signX + border * 2,
+    signY + border * 2,
+    signWidth - border * 4,
+    signHeight - border * 4,
+  );
+
+  // Corner rivets keep the sign feeling like an object in the pixel office.
+  ctx.fillStyle = COMPANY_SIGN_RIVET_COLOR;
+  const rivet = Math.max(2, 2 * zoom);
+  const inset = 5 * zoom;
+  for (const x of [signX + inset, signX + signWidth - inset - rivet]) {
+    for (const y of [signY + inset, signY + signHeight - inset - rivet]) {
+      ctx.fillRect(x, y, rivet, rivet);
+    }
+  }
+
+  ctx.font = `700 ${fontSize}px ${SIGN_FONT_FAMILY}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = COMPANY_SIGN_SHADOW_COLOR;
+  ctx.fillText(
+    companyName,
+    signX + signWidth / 2 + zoom,
+    signY + signHeight / 2 + zoom,
+    signWidth - 24 * zoom,
+  );
+  ctx.fillStyle = COMPANY_SIGN_TEXT_COLOR;
+  ctx.fillText(companyName, signX + signWidth / 2, signY + signHeight / 2, signWidth - 24 * zoom);
+  ctx.restore();
 }
 
 // ── Seat indicators ─────────────────────────────────────────────
@@ -696,6 +773,9 @@ export function renderFrame(
     hoveredId,
     pets ?? [],
   );
+
+  // The plaque sits above the visible office and should overlay wall decorations.
+  renderCompanySign(ctx, tileMap, offsetX, offsetY, zoom, cols);
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);

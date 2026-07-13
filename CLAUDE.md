@@ -1,6 +1,6 @@
 # Pixel Agents — Compressed Reference
 
-Pixel art office where AI agents (Claude Code terminals today, any tool tomorrow) become animated characters. Ships as a **VS Code extension** and an **`npx pixel-agents` standalone CLI** from the same source tree.
+Pixel art office where AI agents become animated characters. Claude Code hooks are the reference integration; the standalone CLI also discovers active Codex rollout sessions.
 
 ## Architecture
 
@@ -28,6 +28,7 @@ server/                              Lifecycle runtime + Fastify HTTP/WS server
       claudeHookInstaller.ts         Atomic install/uninstall in ~/.claude/settings.json
       constants.ts                   Claude hook event names, script path
       hooks/claude-hook.ts           Hook script (CJS+shebang, bundled to dist/hooks/claude-hook.js)
+    providers/polling/codex/         Standalone Codex rollout discovery (first metadata + lifecycle only)
     providers/index.ts               Provider registry
     agentRuntime.ts                  Lifecycle core: timers, scanners, HookEventHandler, SessionRouter, DismissalTracker
     agentStateStore.ts               EventEmitter-backed single source of truth (typed mutations + events)
@@ -213,7 +214,7 @@ export type TransportState = 'connecting' | 'connected' | 'reconnecting' | 'disc
 
 ## Provider Abstraction
 
-`HookProvider` (`core/src/provider.ts`) is the integration boundary. Today only Claude Code is implemented. The interface:
+`HookProvider` (`core/src/provider.ts`) is the hook integration boundary and Claude Code is its reference implementation. Codex currently uses an isolated standalone polling scanner because its authoritative local surface is a rollout JSONL stream rather than the Claude hook protocol. The interface:
 
 - **Required**: `normalizeHookEvent(raw)` → `{ sessionId, event: AgentEvent } | null`; `installHooks` / `uninstallHooks` / `areHooksInstalled`; `formatToolStatus`; `permissionExemptTools`, `subagentToolNames`, `readingTools` sets.
 - **Optional file fallback**: `getSessionDirs(workspace)`, `getAllSessionRoots()`, `sessionFilePattern`, `parseTranscriptLine(line)`, `buildLaunchCommand(sessionId, cwd, opts)`. Used when hooks aren't installed.

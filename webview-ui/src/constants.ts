@@ -82,10 +82,21 @@ export const CAMERA_FOLLOW_SNAP_THRESHOLD = 0.5;
 export const ZOOM_MIN = 1;
 export const ZOOM_MAX = 10;
 export const ZOOM_DEFAULT_DPR_FACTOR = 2;
+export const ZOOM_FIT_PADDING_RATIO = 0.94;
 export const ZOOM_LEVEL_FADE_DELAY_MS = 1500;
 export const ZOOM_LEVEL_HIDE_DELAY_MS = 2000;
 export const ZOOM_LEVEL_FADE_DURATION_SEC = 0.5;
 export const ZOOM_SCROLL_THRESHOLD = 50;
+
+/** Brand shown on the hanging sign above the office. */
+export const COMPANY_NAME = 'SUNWOOD AI LABS.';
+export const COMPANY_SIGN_HANGER_COLOR = '#7c5234';
+export const COMPANY_SIGN_SHADOW_COLOR = '#121322';
+export const COMPANY_SIGN_FRAME_COLOR = '#d89b4b';
+export const COMPANY_SIGN_FRAME_HIGHLIGHT_COLOR = '#f6cf77';
+export const COMPANY_SIGN_FACE_COLOR = '#202943';
+export const COMPANY_SIGN_RIVET_COLOR = '#fff0ad';
+export const COMPANY_SIGN_TEXT_COLOR = '#fff3c4';
 export const PAN_MARGIN_FRACTION = 0.25;
 
 // ── Editor ───────────────────────────────────────────────────

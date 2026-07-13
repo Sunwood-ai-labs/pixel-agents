@@ -148,6 +148,7 @@ describe('AgentStateStore', () => {
           projectDir: '/proj',
           jsonlFile: '/proj/sess-1.jsonl',
           folderName: 'my-folder',
+          providerId: 'codex',
           teamName: 'team-a',
           agentName: undefined,
           isTeamLead: true,
@@ -166,6 +167,7 @@ describe('AgentStateStore', () => {
       expect(saved[0].projectDir).toBe('/proj');
       expect(saved[0].jsonlFile).toBe('/proj/sess-1.jsonl');
       expect(saved[0].folderName).toBe('my-folder');
+      expect(saved[0].providerId).toBe('codex');
       expect(saved[0].teamName).toBe('team-a');
       expect(saved[0].isTeamLead).toBe(true);
     });

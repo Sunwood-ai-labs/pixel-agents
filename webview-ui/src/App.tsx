@@ -199,7 +199,11 @@ function App() {
 
       {!isDebugMode ? (
         <>
-          <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+          {/* Viewer mode is intentionally chrome-free; auto-fit owns the camera.
+              Manual zoom remains available while editing the layout. */}
+          {editor.isEditMode && (
+            <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+          )}
 
           {/* Vignette overlay */}
           <div
@@ -276,7 +280,7 @@ function App() {
       )}
 
       {/* Hooks first-run tooltip */}
-      {!hooksInfoShown && !hooksTooltipDismissed && (
+      {!isBrowserRuntime && !hooksInfoShown && !hooksTooltipDismissed && (
         <Tooltip
           title="Instant Detection Active"
           position="top-right"

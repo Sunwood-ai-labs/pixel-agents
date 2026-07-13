@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap');
 @import 'tailwindcss';
 
 @font-face {
@@ -50,6 +51,7 @@
   --spacing: 1px;
 
   --font-pixel: 'FS Pixel Sans', sans-serif;
+  --font-company-sign: 'Silkscreen', 'FS Pixel Sans', monospace;
 
   /* Text sizes (pixel-art scale, base = 22px) */
   --text-*: initial;
@@ -123,6 +125,32 @@
   }
 }
 
+/* Viewer-first chrome: one quiet affordance by default, full controls on demand. */
+.viewer-controls {
+  transition:
+    opacity 140ms steps(2, end),
+    background-color 140ms steps(2, end);
+}
+
+.viewer-controls.is-collapsed {
+  padding: 0;
+  border-color: rgba(74, 74, 106, 0.45);
+  background: rgba(30, 30, 46, 0.48);
+  box-shadow: 1px 1px 0 rgba(10, 10, 20, 0.55);
+  opacity: 0.42;
+}
+
+.viewer-controls.is-collapsed:hover,
+.viewer-controls.is-collapsed:focus-within {
+  opacity: 1;
+}
+
+.viewer-controls-toggle {
+  width: 44px;
+  height: 44px;
+  border-color: transparent;
+}
+
 @keyframes pixel-pulse {
   0%,
   100% {
@@ -144,24 +172,33 @@
 
   .bottom-toolbar {
     left: var(--mobile-edge);
-    right: var(--mobile-edge);
     bottom: var(--mobile-safe-bottom);
-    min-height: var(--mobile-toolbar-height);
-    justify-content: stretch;
+    min-height: 0;
     padding: 4px;
     gap: 4px;
   }
 
-  .bottom-toolbar > button,
-  .bottom-toolbar > div,
-  .bottom-toolbar > div > button {
+  .bottom-toolbar.is-expanded {
+    right: var(--mobile-edge);
+    min-height: var(--mobile-toolbar-height);
+    justify-content: stretch;
+  }
+
+  .bottom-toolbar.is-expanded > button,
+  .bottom-toolbar.is-expanded > div,
+  .bottom-toolbar.is-expanded > div > button {
     flex: 1 1 0;
     min-width: 0;
   }
 
-  .bottom-toolbar button {
+  .bottom-toolbar.is-expanded button {
     min-height: 44px;
     padding-inline: 10px;
+  }
+
+  .bottom-toolbar.is-collapsed .viewer-controls-toggle {
+    min-height: 44px;
+    width: 44px;
   }
 
   .responsive-tooltip {

@@ -14,6 +14,8 @@ export interface PersistedAgent {
   jsonlFile: string;
   projectDir: string;
   folderName?: string;
+  /** Provider that owns this agent. Missing values are legacy Claude sessions. */
+  providerId?: string;
   teamName?: string;
   agentName?: string;
   isTeamLead?: boolean;
