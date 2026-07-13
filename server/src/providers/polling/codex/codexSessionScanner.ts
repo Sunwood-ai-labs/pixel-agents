@@ -128,7 +128,7 @@ export async function discoverActiveCodexSessions(
   const maxIdleMs = options.maxIdleMs ?? DEFAULT_MAX_IDLE_MS;
   const completedRetentionMs = options.completedRetentionMs ?? DEFAULT_COMPLETED_RETENTION_MS;
   const root = options.sessionsRoot ?? path.join(os.homedir(), '.codex', 'sessions');
-  const files = recentJsonlFiles(root, now - maxIdleMs);
+  const files = recentJsonlFiles(root, now - Math.max(maxIdleMs, completedRetentionMs));
   const inspected = await Promise.all(files.map((file) => inspectSession(file)));
 
   const related = inspected.filter((session): session is CodexSessionInfo => {
@@ -212,6 +212,7 @@ export class CodexSessionScanner {
           const agent = this.store.get(existingId);
           if (agent) {
             const becameDone = !agent.isWaiting && session.lifecycle === 'done';
+            const becameActive = agent.isWaiting && session.lifecycle === 'active';
             agent.isWaiting = session.lifecycle === 'done';
             agent.folderName = displayName(session);
             agent.lastDataAt = session.lastDataAt;
@@ -222,6 +223,8 @@ export class CodexSessionScanner {
                 status: 'waiting',
                 awaitingInput: false,
               });
+            } else if (becameActive) {
+              this.store.broadcast({ type: 'agentStatus', id: existingId, status: 'active' });
             }
           }
           continue;

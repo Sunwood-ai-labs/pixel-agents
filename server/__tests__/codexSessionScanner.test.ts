@@ -66,15 +66,20 @@ describe('discoverActiveCodexSessions', () => {
 
   it('retains recently completed sessions but excludes expired and unrelated sessions', async () => {
     const root = tempRoot();
-    writeSession(root, 'completed', [
-      record('session_meta', {
-        id: 'done',
-        cwd: '/Users/admin/Prj',
-        agent_path: '/root/reviewer',
-      }),
-      record('event_msg', { type: 'task_started' }),
-      record('event_msg', { type: 'task_complete' }),
-    ]);
+    writeSession(
+      root,
+      'completed',
+      [
+        record('session_meta', {
+          id: 'done',
+          cwd: '/Users/admin/Prj',
+          agent_path: '/root/reviewer',
+        }),
+        record('event_msg', { type: 'task_started' }),
+        record('event_msg', { type: 'task_complete' }),
+      ],
+      new Date(Date.now() - 12 * 60 * 60 * 1000),
+    );
     writeSession(root, 'unrelated', [
       record('session_meta', { id: 'elsewhere', cwd: '/tmp/other' }),
       record('event_msg', { type: 'task_started' }),
@@ -136,7 +141,7 @@ describe('discoverActiveCodexSessions', () => {
 });
 
 describe('CodexSessionScanner', () => {
-  it('keeps completed agents as Done until the retention window expires', async () => {
+  it('keeps Done agents, reactivates the same ID, then removes it after expiry', async () => {
     const root = tempRoot();
     const file = writeSession(root, 'active', [
       record('session_meta', {
@@ -150,8 +155,10 @@ describe('CodexSessionScanner', () => {
     const store = new AgentStateStore();
     const added = vi.fn();
     const removed = vi.fn();
+    const broadcasts = vi.fn();
     store.on('agentAdded', added);
     store.on('agentRemoved', removed);
+    store.on('broadcast', broadcasts);
     const scanner = new CodexSessionScanner(store, '/Users/admin/Prj/pixel-agents', root);
 
     await scanner.scan();
@@ -172,6 +179,15 @@ describe('CodexSessionScanner', () => {
       folderName: 'Codex · Tester · Done',
     });
     expect(removed).not.toHaveBeenCalled();
+
+    fs.appendFileSync(file, `${record('event_msg', { type: 'task_started' })}\n`);
+    await scanner.scan();
+    expect(store.size).toBe(1);
+    expect([...store.values()][0]).toMatchObject({
+      isWaiting: false,
+      folderName: 'Codex · Tester',
+    });
+    expect(broadcasts).toHaveBeenCalledWith({ type: 'agentStatus', id: 1, status: 'active' });
 
     const expired = new Date(Date.now() - 25 * 60 * 60 * 1000);
     fs.utimesSync(file, expired, expired);
