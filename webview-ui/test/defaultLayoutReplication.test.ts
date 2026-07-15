@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { findPath } from '../src/office/layout/tileMap.js';
+import type { TileType as TileTypeValue } from '../src/office/types.js';
+
 interface PlacedItem {
   uid?: string;
   id?: string;
@@ -30,17 +33,17 @@ function load(name: string): Layout {
 function expectRowsDuplicated(source: Layout, expanded: Layout, values: keyof Layout): void {
   const sourceValues = source[values] as unknown[];
   const expandedValues = expanded[values] as unknown[];
+  const connectorCells = new Set(
+    [14, 15, 16, 17].flatMap((row) => [19, 20, 21].map((col) => `${row},${col}`)),
+  );
   for (let row = 0; row < source.rows; row++) {
-    const original = sourceValues.slice(row * source.cols, (row + 1) * source.cols);
-    expect(expandedValues.slice(row * expanded.cols, row * expanded.cols + source.cols)).toEqual(
-      original,
-    );
-    expect(
-      expandedValues.slice(
-        row * expanded.cols + source.cols,
-        row * expanded.cols + source.cols * 2,
-      ),
-    ).toEqual(original);
+    for (let col = 0; col < source.cols; col++) {
+      const expected = sourceValues[row * source.cols + col];
+      for (const targetCol of [col, source.cols + col]) {
+        if (connectorCells.has(`${row},${targetCol}`)) continue;
+        expect(expandedValues[row * expanded.cols + targetCol]).toEqual(expected);
+      }
+    }
   }
 }
 
@@ -80,6 +83,17 @@ describe('bundled office section replication', () => {
         ...pet,
         id: `${pet.id}--zone-copy-2`,
       });
+    }
+
+    const tileMap = Array.from({ length: expanded.rows }, (_, row) =>
+      expanded.tiles.slice(row * expanded.cols, (row + 1) * expanded.cols),
+    ) as TileTypeValue[][];
+    expect(findPath(1, 14, 39, 14, tileMap, new Set())).not.toHaveLength(0);
+
+    for (const row of [14, 15, 16, 17]) {
+      expect(tileMap[row][19]).not.toBe(0);
+      expect(tileMap[row][20]).not.toBe(255);
+      expect(tileMap[row][21]).not.toBe(0);
     }
   });
 });

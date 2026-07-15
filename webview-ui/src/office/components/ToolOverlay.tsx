@@ -186,7 +186,7 @@ export function ToolOverlay({
         ) {
           return null;
         }
-        if (compactView && id !== primarySummaryId && !isSelected && !isHovered) {
+        if (id !== primarySummaryId && !isSelected && !isHovered) {
           return null;
         }
         if (teamVisual && id !== teamVisual.rootId && !isSelected && !isHovered) {

@@ -50,8 +50,35 @@ const output = {
   layoutRevision: revision,
 };
 
+// Match the original four-tile-high doorway between its two rooms at every
+// copied block boundary. A copied block ends as WALL + VOID and the next one
+// starts with WALL; replacing those three columns with the adjacent floor
+// patterns makes every room part of one walkable office.
+const passageRows = [14, 15, 16, 17];
+for (let copy = 1; copy < copies; copy++) {
+  const boundary = source.cols * copy;
+  for (const row of passageRows) {
+    const leftFloorIndex = row * output.cols + boundary - 3;
+    const rightFloorIndex = row * output.cols + boundary + 1;
+    for (const col of [boundary - 2, boundary - 1]) {
+      output.tiles[row * output.cols + col] = output.tiles[leftFloorIndex];
+      if (output.tileColors) {
+        output.tileColors[row * output.cols + col] = structuredClone(
+          output.tileColors[leftFloorIndex],
+        );
+      }
+    }
+    output.tiles[row * output.cols + boundary] = output.tiles[rightFloorIndex];
+    if (output.tileColors) {
+      output.tileColors[row * output.cols + boundary] = structuredClone(
+        output.tileColors[rightFloorIndex],
+      );
+    }
+  }
+}
+
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`);
 console.log(
-  `[duplicate-default-layout] ${source.cols}×${source.rows} → ${output.cols}×${output.rows}; ${copies} complete zone sets`,
+  `[duplicate-default-layout] ${source.cols}×${source.rows} → ${output.cols}×${output.rows}; ${copies} connected zone sets`,
 );
