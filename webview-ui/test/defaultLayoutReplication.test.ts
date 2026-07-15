@@ -46,6 +46,12 @@ function expectRowsDuplicated(source: Layout, expanded: Layout, values: keyof La
       for (const col of [center - 1, center, center + 1]) connectorCells.add(`${row},${col}`);
     }
   }
+  for (const col of [
+    ...Array.from({ length: 20 }, (_, index) => index),
+    ...Array.from({ length: 20 }, (_, index) => index + 21),
+  ]) {
+    connectorCells.add(`21,${col}`);
+  }
   for (let row = 0; row < source.rows; row++) {
     for (let col = 0; col < source.cols; col++) {
       const expected = sourceValues[row * source.cols + col];
@@ -144,6 +150,18 @@ describe('bundled office section replication', () => {
           expect(tileMap[row][col]).not.toBe(0);
           expect(tileMap[row][col]).not.toBe(255);
         }
+      }
+    }
+    const openings = new Set([4, 5, 6, 14, 15, 16, 25, 26, 27, 35, 36, 37]);
+    for (const col of [
+      ...Array.from({ length: 20 }, (_, index) => index),
+      ...Array.from({ length: 20 }, (_, index) => index + 21),
+    ]) {
+      if (openings.has(col)) {
+        expect(tileMap[21][col]).not.toBe(0);
+        expect(tileMap[21][col]).not.toBe(255);
+      } else {
+        expect(tileMap[21][col]).toBe(0);
       }
     }
   });

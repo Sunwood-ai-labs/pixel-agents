@@ -84,16 +84,21 @@ export function computeOfficeView(
   const safeBottom = canvasHeight - (compact ? COMPACT_TOOLBAR_RESERVE_CSS_PX * dpr : gutter);
   const contentWidth = bounds.right - bounds.left;
   const contentHeight = bounds.bottom - bounds.top;
-  const horizontalFit = ((safeRight - safeLeft) * ZOOM_FIT_PADDING_RATIO) / contentWidth;
-  const verticalFit = ((safeBottom - safeTop) * ZOOM_FIT_PADDING_RATIO) / contentHeight;
+  // Compact layouts already have a hard safe gutter. Applying the desktop
+  // padding ratio a second time left a conspicuous unused band on phones.
+  const fitPadding = compact ? 1 : ZOOM_FIT_PADDING_RATIO;
+  const horizontalFit = ((safeRight - safeLeft) * fitPadding) / contentWidth;
+  const verticalFit = ((safeBottom - safeTop) * fitPadding) / contentHeight;
   // Keep pixel art crisp while allowing desktop viewers to use the available
   // screen. A 2x cap left a large unused frame around this office at 1336x768;
   // 3 CSS pixels per source pixel still fits and remains integer-scaled.
   const densityCap = 3 * dpr;
-  const zoom = Math.max(
-    ZOOM_MIN,
-    Math.min(ZOOM_MAX, Math.floor(Math.min(horizontalFit, verticalFit, densityCap))),
-  );
+  const rawFit = Math.min(horizontalFit, verticalFit, densityCap);
+  // On compact viewers an integer floor wastes most of the final scale step:
+  // a 0.61 fit used to collapse to the 0.5 minimum. Quantize to 0.05 instead,
+  // capped at 1x, so the complete office fills the phone width without clipping.
+  const fittedZoom = compact ? Math.min(1, Math.floor(rawFit * 20) / 20) : Math.floor(rawFit);
+  const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, fittedZoom));
 
   const mapWidth = cols * TILE_SIZE * zoom;
   const mapHeight = rows * TILE_SIZE * zoom;

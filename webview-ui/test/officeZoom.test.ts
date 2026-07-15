@@ -38,12 +38,23 @@ describe('computeOfficeView', () => {
 
   it('fits a horizontally replicated four-section office on a narrow viewer', () => {
     const view = computeOfficeView(390, 844, 390, 844, 1, replicatedShape(), 42, 22);
-    expect(view.zoom).toBe(0.5);
+    expect(view.zoom).toBe(0.55);
 
     const officeWidth = 42 * 16 * view.zoom;
     const left = (390 - officeWidth) / 2 + view.panX;
     expect(left).toBeGreaterThanOrEqual(0);
     expect(left + officeWidth).toBeLessThanOrEqual(390);
+  });
+
+  it('uses the phone width while fitting all eight sections without clipping', () => {
+    const twoRows = [...replicatedShape().slice(0, 22), ...replicatedShape().slice(10)];
+    const view = computeOfficeView(430, 932, 430, 932, 1, twoRows, 42, 34);
+    expect(view.zoom).toBe(0.6);
+    const officeWidth = 42 * 16 * view.zoom;
+    const left = (430 - officeWidth) / 2 + view.panX;
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + officeWidth).toBeLessThanOrEqual(430);
+    expect(officeWidth / 430).toBeGreaterThan(0.9);
   });
 
   it('uses DPR to preserve the same visual density on Retina displays', () => {

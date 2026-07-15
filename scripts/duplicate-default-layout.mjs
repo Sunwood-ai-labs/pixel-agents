@@ -120,13 +120,19 @@ for (let copy = 1; copy < copies; copy++) {
 }
 
 // Connect the copied rows with three-tile-wide vertical hallways in both
-// sections of every horizontal block. The source includes a title margin, so
-// the hallway deliberately spans that margin to keep both office rows joined.
+// sections of every horizontal block. First draw an explicit wall threshold
+// between the rows; the aligned three-tile openings below are the only breaks.
 for (let rowCopy = 1; rowCopy < rowCopies; rowCopy++) {
   const lowerRowOffset = (source.rows - 10) * rowCopy;
   const upperFloorRow = lowerRowOffset + 8;
+  const thresholdRow = lowerRowOffset + 9;
   const lowerFloorRow = lowerRowOffset + 10;
   for (let copy = 0; copy < copies; copy++) {
+    for (let localCol = 0; localCol <= 19; localCol++) {
+      const col = source.cols * copy + localCol;
+      output.tiles[thresholdRow * output.cols + col] = 0;
+      if (output.tileColors) output.tileColors[thresholdRow * output.cols + col] = null;
+    }
     for (const localCenter of [5, 15]) {
       const center = source.cols * copy + localCenter;
       for (let row = upperFloorRow; row <= lowerFloorRow; row++) {
