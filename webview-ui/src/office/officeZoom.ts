@@ -73,7 +73,7 @@ export function computeOfficeView(
 ): OfficeView {
   const bounds = computeContentBounds(tileMap, cols, companyName);
   if (!bounds || canvasWidth <= 0 || canvasHeight <= 0 || cols <= 0 || rows <= 0) {
-    return { panX: 0, panY: 0, zoom: ZOOM_MIN };
+    return { panX: 0, panY: 0, zoom: 1 };
   }
 
   const compact = cssWidth <= COMPACT_BREAKPOINT || cssHeight <= COMPACT_HEIGHT_BREAKPOINT;

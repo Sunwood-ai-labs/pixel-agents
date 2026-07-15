@@ -139,19 +139,22 @@ export function ToolOverlay({
     .filter((character): character is NonNullable<typeof character> => Boolean(character));
   const teamVisuals = computeAgentTeamVisuals(visibleCharacters);
   const compactView = rect.width < 640;
-  const compactPrimaryId = compactView
-    ? (visibleCharacters.find(
-        (character) =>
-          character.isActive &&
-          Boolean(character.remoteHostId) &&
-          teamVisuals.get(character.id)?.rootId === character.id,
-      )?.id ??
-      visibleCharacters.find(
-        (character) => character.isActive && teamVisuals.get(character.id)?.rootId === character.id,
-      )?.id ??
-      visibleCharacters.find((character) => character.isActive)?.id ??
-      null)
-    : null;
+  const primarySummaryId =
+    visibleCharacters.find(
+      (character) =>
+        character.isActive &&
+        Boolean(character.remoteHostId) &&
+        teamVisuals.get(character.id)?.rootId === character.id,
+    )?.id ??
+    visibleCharacters.find(
+      (character) => character.isActive && teamVisuals.get(character.id)?.rootId === character.id,
+    )?.id ??
+    visibleCharacters.find((character) => character.isActive)?.id ??
+    null;
+  const teamRootIds = visibleCharacters
+    .filter((character) => teamVisuals.get(character.id)?.rootId === character.id)
+    .map((character) => character.id)
+    .sort((a, b) => a - b);
   return (
     <>
       {allIds.map((id) => {
@@ -183,7 +186,7 @@ export function ToolOverlay({
         ) {
           return null;
         }
-        if (compactView && id !== compactPrimaryId && !isSelected && !isHovered) {
+        if (compactView && id !== primarySummaryId && !isSelected && !isHovered) {
           return null;
         }
         if (teamVisual && id !== teamVisual.rootId && !isSelected && !isHovered) {
@@ -271,6 +274,10 @@ export function ToolOverlay({
               .join(' · ')
           : null;
         const hasExtraLines = !!(ch.folderName || teamRoleLabel || remoteLine);
+        const rootSummaryIndex = teamRootIds.indexOf(id);
+        const pinSummaryAboveOffice = rootSummaryIndex >= 0;
+        const pinnedSummaryX =
+          rect.width / 2 + (rootSummaryIndex - (teamRootIds.length - 1) / 2) * 200;
         const groupOffsetY = !compactView && teamVisual?.rootId === id ? -22 : 0;
 
         return (
@@ -278,8 +285,12 @@ export function ToolOverlay({
             key={id}
             className="absolute flex flex-col items-center -translate-x-1/2"
             style={{
-              left: compactView ? rect.width / 2 : screenX,
-              top: compactView ? 16 : screenY - (hasExtraLines ? 34 : 28) + groupOffsetY,
+              left: pinSummaryAboveOffice
+                ? compactView
+                  ? rect.width / 2
+                  : pinnedSummaryX
+                : screenX,
+              top: pinSummaryAboveOffice ? 16 : screenY - (hasExtraLines ? 34 : 28) + groupOffsetY,
               pointerEvents: isSelected ? 'auto' : 'none',
               opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
               zIndex: isSelected ? 42 : 41,

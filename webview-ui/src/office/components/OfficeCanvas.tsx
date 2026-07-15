@@ -817,9 +817,16 @@ export function OfficeCanvas({
         // Accumulate scroll delta, step zoom when threshold crossed
         zoomAccumulatorRef.current += e.deltaY;
         if (Math.abs(zoomAccumulatorRef.current) >= ZOOM_SCROLL_THRESHOLD) {
-          const delta = zoomAccumulatorRef.current < 0 ? 1 : -1;
+          const zoomingIn = zoomAccumulatorRef.current < 0;
           zoomAccumulatorRef.current = 0;
-          const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom + delta));
+          const steppedZoom = zoomingIn
+            ? zoom < 1
+              ? 1
+              : zoom + 1
+            : zoom <= 1
+              ? ZOOM_MIN
+              : zoom - 1;
+          const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, steppedZoom));
           if (newZoom !== zoom) {
             onZoomChange(newZoom);
           }

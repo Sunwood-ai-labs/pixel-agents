@@ -19,6 +19,7 @@ The normal office view is primarily a passive visual monitor, not an operator da
 
 - Keep normal viewing mode focused on the office scene. Human controls must be collapsed to one quiet, accessible affordance by default and expand only on explicit interaction.
 - Use the largest crisp integer zoom that fits the visible office, company sign, and safe control area. Do not preserve large decorative margins through an arbitrary density cap.
+- When the user asks to widen, expand, copy, or duplicate existing office sections, preserve the section as the unit of expansion: clone its tiles, walls, colors, furniture, seats, and decorations together. Do not substitute denser seating or moving agents within the original section count. Completion evidence must visibly show the increased number of full sections.
 - Keep manual zoom and layout-authoring controls available in edit mode; rely on automatic fit in normal viewing mode.
 - Do not show onboarding or configuration callouts over the standalone viewing surface unless they communicate a current blocking state.
 - Before completion, verify a fresh normal-mode screenshot shows the office and live agents without persistent button clusters obscuring the scene.

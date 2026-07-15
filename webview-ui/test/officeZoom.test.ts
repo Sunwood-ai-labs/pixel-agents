@@ -15,6 +15,10 @@ function defaultShape(): TileTypeVal[][] {
   ];
 }
 
+function replicatedShape(): TileTypeVal[][] {
+  return defaultShape().map((row) => [...row, ...row]);
+}
+
 describe('computeOfficeView', () => {
   it('selects the largest crisp view that fits the desktop safe area', () => {
     const view = computeOfficeView(1336, 768, 1336, 768, 1, defaultShape(), 21, 22);
@@ -30,6 +34,16 @@ describe('computeOfficeView', () => {
     expect(portrait.panY).toBeLessThan(0);
     expect(landscape.zoom).toBe(1);
     expect(landscape.panY).toBeLessThan(0);
+  });
+
+  it('fits a horizontally replicated four-section office on a narrow viewer', () => {
+    const view = computeOfficeView(390, 844, 390, 844, 1, replicatedShape(), 42, 22);
+    expect(view.zoom).toBe(0.5);
+
+    const officeWidth = 42 * 16 * view.zoom;
+    const left = (390 - officeWidth) / 2 + view.panX;
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + officeWidth).toBeLessThanOrEqual(390);
   });
 
   it('uses DPR to preserve the same visual density on Retina displays', () => {

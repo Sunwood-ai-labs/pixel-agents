@@ -23,6 +23,8 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
 
   const minDisabled = zoom <= ZOOM_MIN;
   const maxDisabled = zoom >= ZOOM_MAX;
+  const zoomIn = zoom < 1 ? 1 : zoom + 1;
+  const zoomOut = zoom <= 1 ? ZOOM_MIN : zoom - 1;
 
   // Show zoom level briefly when zoom changes
   useEffect(() => {
@@ -72,7 +74,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
       <div className="zoom-controls absolute top-8 left-8 z-10 flex flex-col gap-4">
         <Button
           size="icon_lg"
-          onClick={() => onZoomChange(zoom + 1)}
+          onClick={() => onZoomChange(zoomIn)}
           disabled={maxDisabled}
           className="border-border! shadow-pixel disabled:hover:bg-btn-bg disabled:cursor-default disabled:opacity-(--btn-disabled-opacity)"
           title="Zoom in (Ctrl+Scroll)"
@@ -100,7 +102,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
         </Button>
         <Button
           size="icon_lg"
-          onClick={() => onZoomChange(zoom - 1)}
+          onClick={() => onZoomChange(zoomOut)}
           disabled={minDisabled}
           className="border-border! shadow-pixel disabled:hover:bg-btn-bg disabled:cursor-default disabled:opacity-(--btn-disabled-opacity)"
           title="Zoom out (Ctrl+Scroll)"
