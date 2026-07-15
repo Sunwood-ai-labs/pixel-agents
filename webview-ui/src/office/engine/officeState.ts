@@ -450,6 +450,10 @@ export class OfficeState {
       ch.frameTimer = 0;
     } else {
       // Already at seat or no path — sit down
+      ch.tileCol = seat.seatCol;
+      ch.tileRow = seat.seatRow;
+      ch.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+      ch.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
       ch.state = CharacterState.TYPE;
       ch.dir = seat.facingDir;
       ch.frame = 0;
@@ -638,6 +642,7 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (ch) {
       ch.isActive = active;
+      if (active) this.clusterActiveLineage(id);
       if (!active) {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
         // Prevents the WALK handler from setting a 2-4 min rest on arrival.
@@ -646,6 +651,100 @@ export class OfficeState {
         ch.moveProgress = 0;
       }
       this.rebuildFurnitureInstances();
+    }
+  }
+
+  private lineageRootId(agentId: number): number {
+    const visited = new Set<number>();
+    let currentId = agentId;
+    while (true) {
+      if (visited.has(currentId)) return Math.min(...visited, currentId);
+      visited.add(currentId);
+      const parentId = this.characters.get(currentId)?.leadAgentId;
+      if (parentId === undefined || !this.characters.has(parentId)) return currentId;
+      currentId = parentId;
+    }
+  }
+
+  /** Move the currently active lineage to the tightest available desk cluster. */
+  private clusterActiveLineage(agentId: number): void {
+    const rootId = this.lineageRootId(agentId);
+    const members = [...this.characters.values()].filter(
+      (character) =>
+        this.lineageRootId(character.id) === rootId &&
+        (character.id === rootId || character.isActive),
+    );
+    if (members.length < 2) return;
+
+    const memberIds = new Set(members.map((member) => member.id));
+    const occupantBySeat = new Map<string, Character>();
+    for (const character of this.characters.values()) {
+      if (character.seatId) occupantBySeat.set(character.seatId, character);
+    }
+    // Active work owns the best desk islands. Completed/idle outsiders may be
+    // moved to a spare seat so a live parent and children can share one table.
+    const candidates = [...this.seats.entries()].filter(([seatId]) => {
+      const occupant = occupantBySeat.get(seatId);
+      return !occupant || memberIds.has(occupant.id) || !occupant.isActive;
+    });
+    if (candidates.length < members.length) return;
+
+    let best: Array<[string, Seat]> | null = null;
+    let bestScore = Infinity;
+    for (const anchor of candidates) {
+      const nearest = [...candidates]
+        .sort(([, a], [, b]) => {
+          const da = (a.seatCol - anchor[1].seatCol) ** 2 + (a.seatRow - anchor[1].seatRow) ** 2;
+          const db = (b.seatCol - anchor[1].seatCol) ** 2 + (b.seatRow - anchor[1].seatRow) ** 2;
+          return da - db;
+        })
+        .slice(0, members.length);
+      const distances = nearest.map(
+        ([, seat]) =>
+          (seat.seatCol - anchor[1].seatCol) ** 2 + (seat.seatRow - anchor[1].seatRow) ** 2,
+      );
+      const score = Math.max(...distances) * 10 + distances.reduce((sum, value) => sum + value, 0);
+      if (score < bestScore) {
+        bestScore = score;
+        best = nearest;
+      }
+    }
+    if (!best) return;
+
+    const targetIds = new Set(best.map(([seatId]) => seatId));
+
+    const displaced = [...this.characters.values()].filter(
+      (character) =>
+        !memberIds.has(character.id) &&
+        Boolean(character.seatId && targetIds.has(character.seatId)) &&
+        !character.isActive,
+    );
+    const moving = [...members, ...displaced];
+    for (const member of moving) {
+      if (!member.seatId) continue;
+      const seat = this.seats.get(member.seatId);
+      if (seat) seat.assigned = false;
+      member.seatId = null;
+    }
+    members.sort((a, b) => Number(b.id === rootId) - Number(a.id === rootId));
+    members.forEach((member, index) => {
+      const [seatId, seat] = best![index]!;
+      this.reassignSeat(member.id, seatId);
+      // Team regrouping is an information-layout operation, not user-directed
+      // walking. Snap to the desk island immediately so the grouping is visible
+      // even when furniture blocks a path between rooms.
+      member.path = [];
+      member.moveProgress = 0;
+      member.tileCol = seat.seatCol;
+      member.tileRow = seat.seatRow;
+      member.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+      member.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
+      member.state = CharacterState.TYPE;
+      member.dir = seat.facingDir;
+    });
+    for (const character of displaced) {
+      const fallbackSeat = this.findFreeSeat();
+      if (fallbackSeat) this.reassignSeat(character.id, fallbackSeat);
     }
   }
 

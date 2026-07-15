@@ -159,7 +159,16 @@ export const FUEL_COLOR_CRITICAL = '#ff2222';
 export const FUEL_GAUGE_BG = '#222';
 export const TEAM_LEAD_COLOR = '#ffd700';
 export const TEAM_ROLE_COLOR = '#66aaff';
-export const AGENT_CONNECTION_COLOR = '#7aa2d6';
+export const AGENT_TEAM_COLORS = [
+  '#49b6ff',
+  '#ffb84d',
+  '#b58cff',
+  '#55d6a9',
+  '#ff7a8a',
+  '#b9dc55',
+] as const;
+export const AGENT_TEAM_LABEL_COLOR = '#10131f';
+export const AGENT_TEAM_FRAME_SHADOW_COLOR = '#10131f';
 export const REMOTE_PROGRESS_COLOR = '#5aa9ff';
 export const REMOTE_OFFLINE_COLOR = '#9aa0aa';
 

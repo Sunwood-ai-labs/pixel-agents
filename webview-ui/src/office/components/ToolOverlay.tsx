@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '../../components/ui/Button.js';
 import {
+  AGENT_TEAM_FRAME_SHADOW_COLOR,
   CHARACTER_SITTING_OFFSET_PX,
   FUEL_COLOR_CRITICAL,
   FUEL_COLOR_DANGER,
@@ -21,6 +22,7 @@ import {
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import { computeAgentTeamVisuals } from '../engine/agentTeamVisuals.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState, TILE_SIZE } from '../types.js';
@@ -132,7 +134,24 @@ export function ToolOverlay({
 
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
-
+  const visibleCharacters = allIds
+    .map((id) => officeState.characters.get(id))
+    .filter((character): character is NonNullable<typeof character> => Boolean(character));
+  const teamVisuals = computeAgentTeamVisuals(visibleCharacters);
+  const compactView = rect.width < 640;
+  const compactPrimaryId = compactView
+    ? (visibleCharacters.find(
+        (character) =>
+          character.isActive &&
+          Boolean(character.remoteHostId) &&
+          teamVisuals.get(character.id)?.rootId === character.id,
+      )?.id ??
+      visibleCharacters.find(
+        (character) => character.isActive && teamVisuals.get(character.id)?.rootId === character.id,
+      )?.id ??
+      visibleCharacters.find((character) => character.isActive)?.id ??
+      null)
+    : null;
   return (
     <>
       {allIds.map((id) => {
@@ -144,6 +163,7 @@ export function ToolOverlay({
         const isSub = ch.isSubagent;
         const isCodexAgent = ch.teamName === 'Codex';
         const isRemoteAgent = !!ch.remoteHostId;
+        const teamVisual = teamVisuals.get(id);
         const isDone =
           ch.remoteConnectionState === 'offline' ||
           (agentStatuses[id] === 'waiting' && !ch.waitingAwaitingInput);
@@ -161,6 +181,12 @@ export function ToolOverlay({
             isDone,
           })
         ) {
+          return null;
+        }
+        if (compactView && id !== compactPrimaryId && !isSelected && !isHovered) {
+          return null;
+        }
+        if (teamVisual && id !== teamVisual.rootId && !isSelected && !isHovered) {
           return null;
         }
 
@@ -226,6 +252,7 @@ export function ToolOverlay({
 
         // Team info
         const isTeamAgent = !!ch.teamName;
+        const teamBadge = teamVisual ? `${ch.isTeamLead ? '◆' : '●'} ${teamVisual.label}` : null;
         const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
         const totalTokens = ch.inputTokens + ch.outputTokens;
         const tokenRatio = totalTokens / MAX_CONTEXT_TOKENS;
@@ -244,27 +271,47 @@ export function ToolOverlay({
               .join(' · ')
           : null;
         const hasExtraLines = !!(ch.folderName || teamRoleLabel || remoteLine);
+        const groupOffsetY = !compactView && teamVisual?.rootId === id ? -22 : 0;
 
         return (
           <div
             key={id}
             className="absolute flex flex-col items-center -translate-x-1/2"
             style={{
-              left: screenX,
-              top: screenY - (hasExtraLines ? 34 : 28),
+              left: compactView ? rect.width / 2 : screenX,
+              top: compactView ? 16 : screenY - (hasExtraLines ? 34 : 28) + groupOffsetY,
               pointerEvents: isSelected ? 'auto' : 'none',
               opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
               zIndex: isSelected ? 42 : 41,
             }}
             data-testid="agent-overlay"
             data-agent-id={id}
+            data-team-group={teamVisual?.label}
+            aria-label={
+              teamVisual
+                ? `${teamVisual.label} ${ch.isTeamLead ? 'lead' : 'member'}; ${activityText}`
+                : undefined
+            }
             title={
               remoteLine
                 ? `${remoteLine}; ${activityText}${remoteProgress ? `; ${Math.round(progressRatio * 100)} percent` : ''}`
                 : undefined
             }
           >
-            <div className="flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs">
+            <div
+              className={`flex items-center border-border pixel-panel whitespace-nowrap ${
+                compactView ? 'px-4 py-3 gap-3' : 'px-8 pt-2 pb-4 gap-5 max-w-2xs'
+              }`}
+              style={
+                teamVisual
+                  ? {
+                      borderColor: teamVisual.color,
+                      boxShadow: `3px 3px 0 color-mix(in srgb, ${teamVisual.color} 45%, ${AGENT_TEAM_FRAME_SHADOW_COLOR})`,
+                      ...(compactView ? { width: 176, maxWidth: 'calc(100vw - 24px)' } : {}),
+                    }
+                  : undefined
+              }
+            >
               {dotColor && (
                 <span
                   className={`w-6 h-6 rounded-full shrink-0 ${isActive && !hasPermission && !hasWaiting ? 'pixel-pulse' : ''}`}
@@ -272,11 +319,19 @@ export function ToolOverlay({
                 />
               )}
               <div className="flex flex-col gap-0 overflow-hidden">
+                {teamBadge && (
+                  <span
+                    className="text-2xs leading-none overflow-hidden text-ellipsis block"
+                    style={{ color: teamVisual?.color }}
+                  >
+                    {teamBadge}
+                  </span>
+                )}
                 {teamRoleLabel && (
                   <span
                     className="overflow-hidden text-ellipsis block leading-none"
                     style={{
-                      fontSize: '18px',
+                      fontSize: compactView ? '12px' : '18px',
                       color: ch.isTeamLead ? TEAM_LEAD_COLOR : TEAM_ROLE_COLOR,
                       fontWeight: ch.isTeamLead ? 'bold' : undefined,
                     }}
@@ -287,18 +342,18 @@ export function ToolOverlay({
                 <span
                   className="overflow-hidden text-ellipsis block leading-none"
                   style={{
-                    fontSize: isSub ? '20px' : '22px',
+                    fontSize: compactView ? '14px' : isSub ? '20px' : '22px',
                     fontStyle: isSub ? 'italic' : undefined,
                   }}
                 >
                   {activityText}
                 </span>
-                {ch.folderName && (
+                {!compactView && ch.folderName && (
                   <span className="text-2xs leading-none overflow-hidden text-ellipsis block">
                     {ch.folderName}
                   </span>
                 )}
-                {remoteLine && (
+                {!compactView && remoteLine && (
                   <span
                     className="text-2xs leading-none overflow-hidden text-ellipsis block"
                     style={{
@@ -351,7 +406,7 @@ export function ToolOverlay({
               >
                 <div
                   style={{
-                    width: FUEL_GAUGE_WIDTH_PX,
+                    width: compactView ? 84 : FUEL_GAUGE_WIDTH_PX,
                     height: FUEL_GAUGE_HEIGHT_PX,
                     background: FUEL_GAUGE_BG,
                   }}

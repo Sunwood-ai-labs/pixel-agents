@@ -50,5 +50,16 @@ describe('remote agent seating', () => {
       (childSeatAfter.seatRow - parentSeat.seatRow) ** 2;
     expect(after).toBeLessThan(before);
     expect(child.leadAgentId).toBe(1);
+
+    office.setAgentActive(1, true);
+    office.setAgentActive(2, true);
+    const clusteredParentSeat = office.seats.get(parent.seatId!)!;
+    const clusteredChildSeat = office.seats.get(child.seatId!)!;
+    const clusteredDistance =
+      (clusteredChildSeat.seatCol - clusteredParentSeat.seatCol) ** 2 +
+      (clusteredChildSeat.seatRow - clusteredParentSeat.seatRow) ** 2;
+    expect(clusteredDistance).toBeLessThanOrEqual(2);
+    expect(child.tileCol).toBe(clusteredChildSeat.seatCol);
+    expect(child.tileRow).toBe(clusteredChildSeat.seatRow);
   });
 });

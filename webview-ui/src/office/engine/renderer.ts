@@ -1,6 +1,6 @@
 import type { ColorValue } from '../../components/ui/types.js';
 import {
-  AGENT_CONNECTION_COLOR,
+  AGENT_TEAM_LABEL_COLOR,
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
@@ -61,7 +61,7 @@ import type {
 } from '../types.js';
 import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
-import { computeAgentConnections } from './agentConnections.js';
+import { computeAgentTeamVisuals } from './agentTeamVisuals.js';
 import { getCharacterSprite } from './characters.js';
 import { computeCompanySignLayout } from './companySign.js';
 import { renderMatrixEffect } from './matrixEffect.js';
@@ -117,33 +117,83 @@ export function renderTileGrid(
   }
 }
 
-/** Draw provider hierarchy below furniture so lineage reads without obscuring people. */
-export function renderAgentConnections(
+/** Draw a shared desk-island frame behind related agents, never crossing the room. */
+export function renderAgentTeamZones(
   ctx: CanvasRenderingContext2D,
   characters: Character[],
   offsetX: number,
   offsetY: number,
   zoom: number,
 ): void {
-  const connections = computeAgentConnections(characters);
+  const visuals = computeAgentTeamVisuals(characters);
+  const groups = new Map<
+    string,
+    { visual: NonNullable<ReturnType<typeof visuals.get>>; members: Character[] }
+  >();
+  for (const character of characters) {
+    const visual = visuals.get(character.id);
+    if (!visual) continue;
+    const group = groups.get(visual.key) ?? { visual, members: [] };
+    group.members.push(character);
+    groups.set(visual.key, group);
+  }
+
+  const tileSize = TILE_SIZE * zoom;
   ctx.save();
-  ctx.strokeStyle = AGENT_CONNECTION_COLOR;
-  ctx.fillStyle = AGENT_CONNECTION_COLOR;
-  ctx.globalAlpha = 0.38;
-  ctx.lineWidth = Math.max(1, Math.round(zoom * 0.65));
-  ctx.setLineDash([Math.max(2, zoom * 2), Math.max(2, zoom)]);
-  for (const { parent, child } of connections) {
-    const parentX = offsetX + Math.round(parent.x * zoom);
-    const parentY = offsetY + Math.round((parent.y - 5) * zoom);
-    const childX = offsetX + Math.round(child.x * zoom);
-    const childY = offsetY + Math.round((child.y - 5) * zoom);
-    ctx.beginPath();
-    ctx.moveTo(parentX, parentY);
-    ctx.lineTo(childX, childY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillRect(childX - Math.max(1, zoom), childY - Math.max(1, zoom), zoom * 2, zoom * 2);
-    ctx.setLineDash([Math.max(2, zoom * 2), Math.max(2, zoom)]);
+  ctx.imageSmoothingEnabled = false;
+  for (const { visual, members } of groups.values()) {
+    const minCol = Math.min(...members.map((member) => member.tileCol));
+    const maxCol = Math.max(...members.map((member) => member.tileCol));
+    const minRow = Math.min(...members.map((member) => member.tileRow));
+    const maxRow = Math.max(...members.map((member) => member.tileRow));
+    const pad = Math.max(2, Math.round(zoom * 3));
+    const x = Math.round(offsetX + minCol * tileSize - pad);
+    const y = Math.round(offsetY + minRow * tileSize - pad);
+    const width = Math.round((maxCol - minCol + 1) * tileSize + pad * 2);
+    const height = Math.round((maxRow - minRow + 1) * tileSize + pad * 2);
+    ctx.globalAlpha = 0.11;
+    ctx.fillStyle = visual.color;
+    ctx.fillRect(x, y, width, height);
+    ctx.globalAlpha = 0.94;
+    ctx.strokeStyle = visual.color;
+    ctx.lineWidth = Math.max(1, Math.round(zoom));
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+    const chipWidth = Math.max(14, 10 * zoom);
+    const chipHeight = Math.max(9, 6 * zoom);
+    ctx.fillStyle = visual.color;
+    ctx.fillRect(x, y, chipWidth, chipHeight);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = AGENT_TEAM_LABEL_COLOR;
+    ctx.font = `700 ${Math.max(7, 4 * zoom)}px ${SIGN_FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(visual.label, x + chipWidth / 2, y + chipHeight / 2 + 0.5);
+  }
+  ctx.restore();
+}
+
+/** Draw hard-edged corner brackets around a related character. */
+export function renderAgentTeamBracket(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  zoom: number,
+  color: string,
+): void {
+  const line = Math.max(1, Math.round(zoom));
+  const corner = Math.max(line * 2, Math.round(zoom * 4));
+  ctx.save();
+  ctx.fillStyle = color;
+  for (const [cx, cy, sx, sy] of [
+    [x, y, 1, 1],
+    [x + width, y, -1, 1],
+    [x, y + height, 1, -1],
+    [x + width, y + height, -1, -1],
+  ] as const) {
+    ctx.fillRect(cx + (sx < 0 ? -corner : 0), cy + (sy < 0 ? -line : 0), corner, line);
+    ctx.fillRect(cx + (sx < 0 ? -line : 0), cy + (sy < 0 ? -corner : 0), line, corner);
   }
   ctx.restore();
 }
@@ -165,6 +215,7 @@ export function renderScene(
   hoveredAgentId: number | null,
   pets: Pet[] = [],
 ): void {
+  const teamVisuals = computeAgentTeamVisuals(characters);
   const drawables: ZDrawable[] = [];
 
   // Furniture
@@ -222,6 +273,27 @@ export function renderScene(
         },
       });
       continue;
+    }
+
+    const teamVisual = teamVisuals.get(ch.id);
+    if (teamVisual) {
+      const bracketX = drawX - 2 * zoom;
+      const bracketY = drawY - 2 * zoom;
+      const bracketWidth = cached.width + 4 * zoom;
+      const bracketHeight = cached.height + 4 * zoom;
+      drawables.push({
+        zY: charZY - OUTLINE_Z_SORT_OFFSET,
+        draw: (c) =>
+          renderAgentTeamBracket(
+            c,
+            bracketX,
+            bracketY,
+            bracketWidth,
+            bracketHeight,
+            zoom,
+            teamVisual.color,
+          ),
+      });
     }
 
     // White outline: full opacity for selected, 50% for hover
@@ -773,7 +845,7 @@ export function renderFrame(
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
 
-  renderAgentConnections(ctx, characters, offsetX, offsetY, zoom);
+  renderAgentTeamZones(ctx, characters, offsetX, offsetY, zoom);
 
   // Seat indicators (below furniture/characters, on top of floor)
   if (selection) {
