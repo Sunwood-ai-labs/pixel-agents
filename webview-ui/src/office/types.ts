@@ -116,6 +116,15 @@ export interface PlacedFurniture {
   color?: ColorValue;
 }
 
+/** A physical office section used to keep one agent lineage together. */
+export interface OfficeZone {
+  id: string;
+  minCol: number;
+  maxCol: number;
+  minRow: number;
+  maxRow: number;
+}
+
 export interface OfficeLayout {
   version: 1;
   cols: number;
@@ -126,6 +135,8 @@ export interface OfficeLayout {
   tileColors?: Array<ColorValue | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
+  /** Physical sections available for lineage-level seating and activity. */
+  zones?: OfficeZone[];
   /** Pets placed in the office. Optional for backward-compat; migrateLayout coerces to []. */
   pets?: PlacedPet[];
 }
@@ -209,6 +220,8 @@ export interface Character {
   remoteConnectionState?: 'connected' | 'offline';
   remoteLastSeenAt?: number;
   remoteProgress?: { current: number; total: number; unit?: string };
+  /** Physical office section reserved for this character's lineage. */
+  zoneId?: string;
 }
 
 export const PetState = { IDLE: 'idle', WALK: 'walk', FOLLOW: 'follow' } as const;

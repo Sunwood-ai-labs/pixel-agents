@@ -23,10 +23,12 @@ function hashString(value: string): number {
 function resolveRootId(character: Character, byId: Map<number, Character>): number {
   const visited = new Set<number>();
   let current = character;
-  while (current.leadAgentId !== undefined) {
+  while (true) {
+    const parentId = current.leadAgentId ?? current.parentAgentId ?? undefined;
+    if (parentId === undefined) break;
     if (visited.has(current.id)) return Math.min(...visited, current.id);
     visited.add(current.id);
-    const parent = byId.get(current.leadAgentId);
+    const parent = byId.get(parentId);
     if (!parent) break;
     current = parent;
   }

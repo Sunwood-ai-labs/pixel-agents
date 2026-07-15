@@ -30,6 +30,7 @@ import type {
   Character,
   FurnitureInstance,
   OfficeLayout,
+  OfficeZone,
   Pet,
   PlacedFurniture,
   PlacedPet,
@@ -67,6 +68,8 @@ export class OfficeState {
   /** Reverse lookup: sub-agent character ID → parent info */
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map();
   private nextSubagentId = -1;
+  /** Stable root-lineage → physical section reservation. */
+  private lineageZoneAssignments: Map<number, string> = new Map();
 
   constructor(layout?: OfficeLayout) {
     this.layout = layout || createDefaultLayout();
@@ -167,6 +170,19 @@ export class OfficeState {
         this.relocateCharacterToWalkable(ch);
       }
     }
+
+    // Re-apply physical lineage reservations after an editor/layout rebuild.
+    // Removed/renamed zones invalidate only their own stale assignments.
+    const zoneIds = new Set((layout.zones ?? []).map((zone) => zone.id));
+    for (const [rootId, zoneId] of this.lineageZoneAssignments) {
+      if (!zoneIds.has(zoneId)) this.lineageZoneAssignments.delete(rootId);
+    }
+    const activeRoots = new Set(
+      [...this.characters.values()]
+        .filter((character) => character.isActive)
+        .map((character) => this.lineageRootId(character.id)),
+    );
+    for (const rootId of activeRoots) this.clusterActiveLineage(rootId);
 
     // Relocate any pets that ended up outside bounds or on non-walkable tiles
     for (const pet of this.pets) {
@@ -564,6 +580,7 @@ export class OfficeState {
 
     this.subagentIdMap.set(key, id);
     this.subagentMeta.set(id, { parentAgentId, parentToolId });
+    this.clusterActiveLineage(id);
     return id;
   }
 
@@ -660,10 +677,52 @@ export class OfficeState {
     while (true) {
       if (visited.has(currentId)) return Math.min(...visited, currentId);
       visited.add(currentId);
-      const parentId = this.characters.get(currentId)?.leadAgentId;
+      const character = this.characters.get(currentId);
+      const parentId = character?.leadAgentId ?? character?.parentAgentId ?? undefined;
       if (parentId === undefined || !this.characters.has(parentId)) return currentId;
       currentId = parentId;
     }
+  }
+
+  private zoneForLineage(rootId: number, requiredSeats: number): OfficeZone | undefined {
+    const configuredZones = this.layout.zones ?? [];
+    const zonesWithSeats = configuredZones.filter((zone) =>
+      [...this.seats.values()].some((seat) => this.seatIsInZone(seat, zone)),
+    );
+    const zonesWithCapacity = zonesWithSeats.filter(
+      (zone) =>
+        [...this.seats.values()].filter((seat) => this.seatIsInZone(seat, zone)).length >=
+        requiredSeats,
+    );
+    const zones = zonesWithCapacity.length > 0 ? zonesWithCapacity : zonesWithSeats;
+    if (zones.length === 0) return undefined;
+    const assignedId = this.lineageZoneAssignments.get(rootId);
+    const assigned = zones.find((zone) => zone.id === assignedId);
+    if (assigned) return assigned;
+
+    const activeRoots = new Set<number>();
+    for (const character of this.characters.values()) {
+      if (character.isActive) activeRoots.add(this.lineageRootId(character.id));
+    }
+    const load = new Map(zones.map((zone) => [zone.id, 0]));
+    for (const activeRoot of activeRoots) {
+      const zoneId = this.lineageZoneAssignments.get(activeRoot);
+      if (zoneId && load.has(zoneId)) load.set(zoneId, load.get(zoneId)! + 1);
+    }
+    const minimumLoad = Math.min(...load.values());
+    const available = zones.filter((zone) => load.get(zone.id) === minimumLoad);
+    const zone = available[Math.abs(rootId) % available.length]!;
+    this.lineageZoneAssignments.set(rootId, zone.id);
+    return zone;
+  }
+
+  private seatIsInZone(seat: Seat, zone: OfficeZone): boolean {
+    return (
+      seat.seatCol >= zone.minCol &&
+      seat.seatCol <= zone.maxCol &&
+      seat.seatRow >= zone.minRow &&
+      seat.seatRow <= zone.maxRow
+    );
   }
 
   /** Move the currently active lineage to the tightest available desk cluster. */
@@ -674,7 +733,9 @@ export class OfficeState {
         this.lineageRootId(character.id) === rootId &&
         (character.id === rootId || character.isActive),
     );
-    if (members.length < 2) return;
+    if (members.length < 1) return;
+    const zone = this.zoneForLineage(rootId, members.length);
+    for (const member of members) member.zoneId = zone?.id;
 
     const memberIds = new Set(members.map((member) => member.id));
     const occupantBySeat = new Map<string, Character>();
@@ -683,7 +744,8 @@ export class OfficeState {
     }
     // Active work owns the best desk islands. Completed/idle outsiders may be
     // moved to a spare seat so a live parent and children can share one table.
-    const candidates = [...this.seats.entries()].filter(([seatId]) => {
+    const candidates = [...this.seats.entries()].filter(([seatId, seat]) => {
+      if (zone && !this.seatIsInZone(seat, zone)) return false;
       const occupant = occupantBySeat.get(seatId);
       return !occupant || memberIds.has(occupant.id) || !occupant.isActive;
     });
@@ -1026,6 +1088,9 @@ export class OfficeState {
     if (teamUsesTmux !== undefined) {
       ch.teamUsesTmux = teamUsesTmux;
     }
+    if (leadAgentId !== undefined && this.characters.has(leadAgentId)) {
+      this.clusterActiveLineage(id);
+    }
   }
 
   setAgentTokens(id: number, inputTokens: number, outputTokens: number): void {
@@ -1080,7 +1145,15 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(
+          ch,
+          dt,
+          this.walkableTiles,
+          this.seats,
+          this.tileMap,
+          this.blockedTiles,
+          this.layout.zones?.find((zone) => zone.id === ch.zoneId),
+        ),
       );
 
       // Tick bubble timer for waiting bubbles

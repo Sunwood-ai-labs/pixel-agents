@@ -45,6 +45,22 @@ function directionBetween(
   return Direction.UP;
 }
 
+function pathStaysInZone(
+  path: Array<{ col: number; row: number }>,
+  zone?: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+): boolean {
+  return (
+    !zone ||
+    path.every(
+      (tile) =>
+        tile.col >= zone.minCol &&
+        tile.col <= zone.maxCol &&
+        tile.row >= zone.minRow &&
+        tile.row <= zone.maxRow,
+    )
+  );
+}
+
 export function createCharacter(
   id: number,
   palette: number,
@@ -95,6 +111,7 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  activityZone?: { minCol: number; maxCol: number; minRow: number; maxRow: number },
 ): void {
   ch.frameTimer += dt;
 
@@ -175,7 +192,7 @@ export function updateCharacter(
               tileMap,
               blockedTiles,
             );
-            if (path.length > 0) {
+            if (path.length > 0 && pathStaysInZone(path, activityZone)) {
               ch.path = path;
               ch.moveProgress = 0;
               ch.state = CharacterState.WALK;
@@ -185,8 +202,17 @@ export function updateCharacter(
             }
           }
         }
-        if (walkableTiles.length > 0) {
-          const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+        const activityTiles = activityZone
+          ? walkableTiles.filter(
+              (tile) =>
+                tile.col >= activityZone.minCol &&
+                tile.col <= activityZone.maxCol &&
+                tile.row >= activityZone.minRow &&
+                tile.row <= activityZone.maxRow,
+            )
+          : walkableTiles;
+        if (activityTiles.length > 0) {
+          const target = activityTiles[Math.floor(Math.random() * activityTiles.length)];
           const path = findPath(
             ch.tileCol,
             ch.tileRow,
@@ -195,7 +221,7 @@ export function updateCharacter(
             tileMap,
             blockedTiles,
           );
-          if (path.length > 0) {
+          if (path.length > 0 && pathStaysInZone(path, activityZone)) {
             ch.path = path;
             ch.moveProgress = 0;
             ch.state = CharacterState.WALK;

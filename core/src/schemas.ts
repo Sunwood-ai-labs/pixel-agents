@@ -69,6 +69,14 @@ export interface OfficeLayout {
   tiles: number[];
   furniture: PlacedFurniture[];
   tileColors?: FloorColor[];
+  layoutRevision?: number;
+  zones?: Array<{
+    id: string;
+    minCol: number;
+    maxCol: number;
+    minRow: number;
+    maxRow: number;
+  }>;
 }
 
 // ── Sprites & Assets ─────────────────────────────────────────
