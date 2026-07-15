@@ -19,11 +19,6 @@ function replicatedShape(): TileTypeVal[][] {
   return defaultShape().map((row) => [...row, ...row]);
 }
 
-function stackedTwoByFourShape(): TileTypeVal[][] {
-  const source = defaultShape();
-  return [...source, ...source.slice(10), ...source.slice(10), ...source.slice(10)];
-}
-
 describe('computeOfficeView', () => {
   it('selects the largest crisp view that fits the desktop safe area', () => {
     const view = computeOfficeView(1336, 768, 1336, 768, 1, defaultShape(), 21, 22);
@@ -60,21 +55,6 @@ describe('computeOfficeView', () => {
     expect(left).toBeGreaterThanOrEqual(0);
     expect(left + officeWidth).toBeLessThanOrEqual(430);
     expect(officeWidth / 430).toBeGreaterThan(0.9);
-  });
-
-  it('uses at least ninety percent of the limiting desktop axis for a two-by-four office', () => {
-    const view = computeOfficeView(1336, 768, 1336, 768, 1, stackedTwoByFourShape(), 21, 58);
-    expect(view.zoom).toBe(0.85);
-
-    const mapHeight = 58 * 16 * view.zoom;
-    const mapTop = (768 - mapHeight) / 2 + view.panY;
-    // The visible bounds include the company sign at source y=112 and the
-    // final section floor through source y=912; title-margin VOID is excluded.
-    const contentTop = mapTop + 112 * view.zoom;
-    const contentBottom = mapTop + 912 * view.zoom;
-    expect(contentTop).toBeGreaterThanOrEqual(8);
-    expect(contentBottom).toBeLessThanOrEqual(768 - 8);
-    expect((contentBottom - contentTop) / (768 - 16)).toBeGreaterThan(0.9);
   });
 
   it('uses DPR to preserve the same visual density on Retina displays', () => {

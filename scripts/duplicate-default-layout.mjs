@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const [, , inputPath, outputPath, copiesRaw = '1', revisionRaw = '4', rowCopiesRaw = '4'] =
+const [, , inputPath, outputPath, copiesRaw = '2', revisionRaw = '3', rowCopiesRaw = '2'] =
   process.argv;
 if (!inputPath || !outputPath) {
   throw new Error(
@@ -12,7 +12,7 @@ if (!inputPath || !outputPath) {
 const copies = Number.parseInt(copiesRaw, 10);
 const revision = Number.parseInt(revisionRaw, 10);
 const rowCopies = Number.parseInt(rowCopiesRaw, 10);
-if (!Number.isInteger(copies) || copies < 1) throw new Error('column-copies must be positive');
+if (!Number.isInteger(copies) || copies < 2) throw new Error('copies must be at least 2');
 if (!Number.isInteger(revision) || revision < 1) throw new Error('revision must be positive');
 if (!Number.isInteger(rowCopies) || rowCopies < 1) throw new Error('row-copies must be positive');
 

@@ -94,12 +94,10 @@ export function computeOfficeView(
   // 3 CSS pixels per source pixel still fits and remains integer-scaled.
   const densityCap = 3 * dpr;
   const rawFit = Math.min(horizontalFit, verticalFit, densityCap);
-  // Below 1x, an integer floor collapses every fit to the 0.5 minimum. Quantize
-  // fractional fits to 0.05 on both desktop and compact viewers so tall offices
-  // use their limiting axis without clipping. Compact mode remains capped at 1x.
-  const quantizedFit = Math.floor(rawFit * 20) / 20;
-  const fittedZoom =
-    rawFit < 1 ? quantizedFit : compact ? Math.min(1, quantizedFit) : Math.floor(rawFit);
+  // On compact viewers an integer floor wastes most of the final scale step:
+  // a 0.61 fit used to collapse to the 0.5 minimum. Quantize to 0.05 instead,
+  // capped at 1x, so the complete office fills the phone width without clipping.
+  const fittedZoom = compact ? Math.min(1, Math.floor(rawFit * 20) / 20) : Math.floor(rawFit);
   const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, fittedZoom));
 
   const mapWidth = cols * TILE_SIZE * zoom;
