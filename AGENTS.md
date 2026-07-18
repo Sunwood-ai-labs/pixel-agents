@@ -32,3 +32,9 @@ The normal office view is primarily a passive visual monitor, not an operator da
 - After each requested feature or correction is implemented and verified, create a scoped commit and push it to the active remote branch before reporting completion.
 - Stage only files owned by that change. Keep generated evidence, runtime logs, dependency-lock changes, and unrelated user work out of the commit unless they are explicitly part of the request.
 - If direct work started on the default branch, create a `codex/` feature branch before the first push unless the user explicitly requests a direct default-branch push.
+
+## Fork and repository rename safety
+
+- For GitHub operations on this fork, never rely on `gh` repository auto-detection because package metadata and the `upstream` remote can cause it to select `pixel-agents-hq/pixel-agents`. Pass the exact `OWNER/REPO` explicitly for every view, edit, API, rename, and Actions query.
+- Before a rename or metadata mutation, verify the target owner, repository name, fork parent, default branch, and `origin` URL. Afterward, update `origin` and verify the new repository identity, tracked branch SHA, and `git ls-remote` result before reporting completion.
+- Keep the repository identity (`pixel-agents-hub`) separate from the compatible product, extension, configuration namespace, and CLI name (`pixel-agents`) unless the user explicitly requests a breaking product rename.
