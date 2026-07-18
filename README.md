@@ -1,5 +1,5 @@
 <h1 align="center">
-    <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">
+    <a href="https://github.com/Sunwood-ai-labs/pixel-agents-hub">
         <img src="webview-ui/public/banner.png" alt="Pixel Agents">
     </a>
 </h1>
@@ -10,21 +10,23 @@
 
 <div align="center" style="margin-top: 25px;">
 
-[![version](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fversion.json)](https://github.com/pixel-agents-hq/pixel-agents/releases)
+[![version](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fversion.json)](https://github.com/Sunwood-ai-labs/pixel-agents-hub/releases)
 [![marketplaces](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Finstalls.json)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
-[![stars](https://img.shields.io/github/stars/pixel-agents-hq/pixel-agents?logo=github&color=0183ff&style=flat)](https://github.com/pixel-agents-hq/pixel-agents/stargazers)
-[![license](https://img.shields.io/github/license/pixel-agents-hq/pixel-agents?color=0183ff&style=flat)](https://github.com/pixel-agents-hq/pixel-agents/blob/main/LICENSE)
-[![good first issues](https://img.shields.io/github/issues/pixel-agents-hq/pixel-agents/good%20first%20issue?color=7057ff&label=good%20first%20issues)](https://github.com/pixel-agents-hq/pixel-agents/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
+[![stars](https://img.shields.io/github/stars/Sunwood-ai-labs/pixel-agents-hub?logo=github&color=0183ff&style=flat)](https://github.com/Sunwood-ai-labs/pixel-agents-hub/stargazers)
+[![license](https://img.shields.io/github/license/Sunwood-ai-labs/pixel-agents-hub?color=0183ff&style=flat)](https://github.com/Sunwood-ai-labs/pixel-agents-hub/blob/main/LICENSE)
+[![good first issues](https://img.shields.io/github/issues/Sunwood-ai-labs/pixel-agents-hub/good%20first%20issue?color=7057ff&label=good%20first%20issues)](https://github.com/Sunwood-ai-labs/pixel-agents-hub/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
 
 </div>
 
 <div align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">💬 Discussions</a> • <a href="https://github.com/pixel-agents-hq/pixel-agents/issues">🐛 Issues</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a> • <a href="CHANGELOG.md">📋 Changelog</a>
+<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://github.com/Sunwood-ai-labs/pixel-agents-hub/discussions">💬 Discussions</a> • <a href="https://github.com/Sunwood-ai-labs/pixel-agents-hub/issues">🐛 Issues</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a> • <a href="CHANGELOG.md">📋 Changelog</a>
 </div>
 
 <br/>
 
-Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+**Pixel Agents Hub** is the central-office distribution of Pixel Agents. It turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+
+The repository is named `pixel-agents-hub`; the product, VS Code extension, configuration namespace, and CLI remain `pixel-agents` for compatibility.
 
 It ships in **two flavors from the same source tree**:
 
@@ -65,8 +67,8 @@ If you just want to use Pixel Agents, the easiest way is to download the [VS Cod
 ### Install from source
 
 ```bash
-git clone https://github.com/pixel-agents-hq/pixel-agents.git
-cd pixel-agents
+git clone https://github.com/Sunwood-ai-labs/pixel-agents-hub.git
+cd pixel-agents-hub
 npm install      # npm workspaces installs root + server + webview-ui in one shot
 npm run build
 ```
@@ -81,7 +83,7 @@ node dist/cli.js                 # or npx pixel-agents [--port 3100] after publi
 
 It starts the Fastify server, opens the webview SPA at `http://localhost:3100`, and (in the same `~/.pixel-agents/` namespace) shares your hooks and layout with the VS Code extension if both are running.
 
-To use one office as a central viewer for multiple PCs, see the [Remote Agent API guide](docs/remote-agent-api.md).
+To use one office as a central viewer for multiple PCs, install the per-PC Reporter described in the [Remote Agent API guide](docs/remote-agent-api.md).
 
 ### Browser Preview & Hosted Reports
 
@@ -146,12 +148,14 @@ No modifications to Claude Code or Codex are needed — Pixel Agents is purely o
 
 ## Tech Stack
 
-Four-package monorepo, npm workspaces:
+Six-part monorepo. npm workspaces cover the runnable server, webview, protocol, and Reporter packages:
 
 - **`core/`** — TypeScript-only protocol + interfaces (AsyncAPI 3.0 contract, `HookProvider`, `MessageTransport`, `StateAdapter`). Zero runtime side effects.
 - **`server/`** — Fastify v5 (HTTP + WebSocket), Vitest. Owns `AgentRuntime`, `AgentStateStore`, `SessionRouter`, `DismissalTracker`, file watching, transcript parsing, providers. Ships the `npx pixel-agents` CLI.
 - **`adapters/vscode/`** — VS Code Extension API. Composes `core/` + `server/` for the desktop surface.
 - **`webview-ui/`** — React 19, Vite, Canvas 2D. Transport-agnostic (`PostMessageTransport` in VS Code, `WebSocketTransport` in the browser).
+- **`packages/remote-protocol/`** — side-effect-free Remote Agent API V1 paths and payload validation shared across machines.
+- **`packages/reporter/`** — lightweight per-PC telemetry CLI. It reports agent state to the Hub and deliberately has no arbitrary command execution.
 
 Builds: esbuild (extension + CLI + hook scripts), Vite (webview SPA). Tests: Vitest (server + webview unit), Playwright (e2e against real VS Code + standalone Fastify).
 
@@ -185,11 +189,11 @@ For this to work, the architecture needs to be modular at every level:
 - **Agent-agnostic**: Claude Code hooks and standalone Codex session discovery today, with OpenCode, Gemini, Cursor, Copilot, and others planned through composable adapters.
 - **Theme-agnostic**: community-created assets, skins, and themes from any contributor.
 
-We're actively working on the core module and adapter architecture that makes this possible. If you're interested to talk about this further, please visit our [Discussions Section](https://github.com/pixel-agents-hq/pixel-agents/discussions).
+We're actively working on the core module and adapter architecture that makes this possible. If you're interested to talk about this further, please visit our [Discussions Section](https://github.com/Sunwood-ai-labs/pixel-agents-hub/discussions).
 
 ## Community & Contributing
 
-Use **[Issues](https://github.com/pixel-agents-hq/pixel-agents/issues)** to report bugs or request features. Join **[Discussions](https://github.com/pixel-agents-hq/pixel-agents/discussions)** for questions and conversations.
+Use **[Issues](https://github.com/Sunwood-ai-labs/pixel-agents-hub/issues)** to report bugs or request features. Join **[Discussions](https://github.com/Sunwood-ai-labs/pixel-agents-hub/discussions)** for questions and conversations.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
 
@@ -208,7 +212,7 @@ If you find Pixel Agents useful, consider supporting its development:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=pixel-agents-hq/pixel-agents&type=Date)](https://www.star-history.com/?repos=pixel-agents-hq%2Fpixel-agents&type=date&legend=bottom-right)
+[![Star History Chart](https://api.star-history.com/svg?repos=Sunwood-ai-labs/pixel-agents-hub&type=Date)](https://www.star-history.com/?repos=Sunwood-ai-labs%2Fpixel-agents-hub&type=date&legend=bottom-right)
 
 ## License
 

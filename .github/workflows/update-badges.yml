@@ -8,7 +8,7 @@ on:
 jobs:
   update-badges:
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pixel-agents-hq/pixel-agents' }}
+    if: ${{ github.repository == 'Sunwood-ai-labs/pixel-agents-hub' }}
 
     steps:
       - name: Fetch VS Code Marketplace stats

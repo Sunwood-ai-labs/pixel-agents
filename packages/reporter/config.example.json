@@ -1,0 +1,11 @@
+{
+  "server": "http://192.168.11.5:3100",
+  "host": "eclipse02",
+  "agent": "codex-worker-1",
+  "name": "Eclipse Codex Worker",
+  "task": "Run repository checks",
+  "status": "active",
+  "activity": "Testing",
+  "ttl": 90,
+  "interval": 30
+}

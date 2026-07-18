@@ -25,7 +25,25 @@ Standalone viewers can subscribe to the office, but their unauthenticated WebSoc
 
 Do not expose plain HTTP directly to the public Internet. Prefer Tailscale or an HTTPS reverse proxy with access control. Anyone who can reach the viewer URL can see the office state; anyone with the Remote API token can create, update, list, or delete remote office agents.
 
-## Report an agent from another PC
+## Install the Reporter on another PC
+
+The Hub and Reporter live in the same repository but are independently runnable workspaces. On each monitored PC:
+
+```bash
+git clone https://github.com/Sunwood-ai-labs/pixel-agents-hub.git
+cd pixel-agents-hub
+npm install
+export PIXEL_AGENTS_URL='http://192.168.11.5:3100'
+export PIXEL_AGENTS_REMOTE_API_TOKEN='<same token>'
+npm exec --workspace @pixel-agents/reporter pixel-agents-reporter -- \
+  report --host eclipse02 --agent codex-worker-1 \
+  --name 'Eclipse Codex Worker' --task 'Run integration tests' \
+  --status active --activity 'Testing API routes' --interval 30
+```
+
+Use a service manager such as systemd to keep the Reporter running after reboot. Store the token in an owner-only environment file, never in the JSON config or repository. The Reporter is telemetry-only and cannot receive or execute remote commands.
+
+## Report an agent with the low-level example
 
 ```bash
 export PIXEL_AGENTS_URL='http://192.168.11.5:3100'

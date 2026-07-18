@@ -6,9 +6,14 @@
   "publisher": "pablodelucca",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pixel-agents-hq/pixel-agents"
+    "url": "https://github.com/Sunwood-ai-labs/pixel-agents-hub"
   },
-  "workspaces": ["server", "webview-ui"],
+  "workspaces": [
+    "server",
+    "webview-ui",
+    "packages/remote-protocol",
+    "packages/reporter"
+  ],
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
@@ -92,6 +97,7 @@
     "format:check": "prettier --check \"adapters/vscode/**/*.ts\" \"server/**/*.ts\" \"core/src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
     "test:webview": "cd webview-ui && npm test",
     "test:server": "cd server && npm test",
+    "test:remote": "npm test --workspace @pixel-agents/remote-protocol && npm test --workspace @pixel-agents/reporter",
     "test": "npm run test:webview && npm run test:server",
     "e2e": "node scripts/run-e2e.mjs",
     "e2e:debug": "node scripts/run-e2e.mjs --debug",
